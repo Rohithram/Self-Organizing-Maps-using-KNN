@@ -75,9 +75,10 @@ def check_global_args(assetno, from_timestamp, to_timestamp, down_sampling_windo
                     return ('Invalid impute fill method!')
                 else:
                     impute_fill_method = impute_fill_method.lower()
-            elif ((str(impute_fill_method).isdigit() is False) & (type(impute_fill_method) != float)):
+            elif bool(re.search('^[\d]*[.]?[\d]+$', str(impute_fill_method))) is False:
+                # elif ((str(impute_fill_method).isdigit() is False) & (type(impute_fill_method) != float)):
                 return ('Invalid impute fill number!')
-
+    # if bool(re.search('^[\d]*[.]?[\d]+$', str(impute_fill_method))) is False:
     if (str(type(assetno)).find('list') == -1):
         return ('Invalid assetno!')
 

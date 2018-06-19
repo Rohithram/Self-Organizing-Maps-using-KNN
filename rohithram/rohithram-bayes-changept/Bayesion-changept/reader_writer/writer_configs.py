@@ -4,7 +4,7 @@ import numpy as np
 import datetime
 table_name = "public.log_asset_timeline"
 writer_kwargs = { 
-                  'operating_unit_serial_number':'1',
+                  'operating_unit_serial_number':'',
                   'event_type':'Symptom',
                   'event_sub_type':'Anomaly',
                   'event_source':'',

@@ -16,7 +16,7 @@ def opentsdb_reader(para_list, assetno, from_timestamp, to_timestamp, down_sampl
     for parameter_name in para_list:
         url = 'http://' + con + '/api/query?start=' + str(from_timestamp) + '&end=' + str(
             to_timestamp) + '&ms=true&m=max:' + down_sampling_window + down_sampling_method + 'none:' + parameter_name + '{AssetNo=' + assetno + '}'
-
+        print(url)
         import sys
         try:
             res = requests.get(url)
@@ -40,12 +40,9 @@ def opentsdb_reader(para_list, assetno, from_timestamp, to_timestamp, down_sampl
             midDF = midDF.drop_duplicates(keep='first').reset_index(drop=True)
         else:
             return ('Empty DataFrame!')
-        midDF.index = midDF['timestamp']
-        midDF.drop(['timestamp'], axis=1, inplace=True)
         finalDF = finalDF.append(midDF)
-    # finalDF=finalDF.reset_index(['timestamp'])
-    finalDF['timestamp'] = finalDF.index
-    finalDF = finalDF.reset_index(drop=True)
+    finalDF = finalDF.groupby('timestamp').max()
+    finalDF = finalDF.reset_index(drop=False)
     return finalDF
 
 
@@ -122,6 +119,7 @@ def csv_reader(con):
     import sys
     try:
         df = pd.read_csv(con, ",")
+        # print(df)
     except:
         return (str(sys.exc_info()))
     if (df.empty):
@@ -131,9 +129,12 @@ def csv_reader(con):
 
 def filter_csv_dataframe(df, para_list, assetno, from_timestamp, to_timestamp):
     import sys
+    
     df['timestamp'] = pd.to_numeric(df['timestamp'], errors='coerce')
-    df.ix[df['timestamp'].apply(int).apply(str).apply(len) == 10, 'timestamp'] = df['timestamp'] * 1e3
+    # print(df['timestamp'])
 
+    # df.ix[df['timestamp'].apply(int).apply(str).apply(len) == 10, 'timestamp'] = df['timestamp'] * 1e3
+    # print(df['timestamp'])
     df_para_list = list(set(df.columns.values))
     if ((set(para_list) <= set(df_para_list)) is False):
         return ('Invalid parameter_name!')
@@ -194,6 +195,7 @@ def resample_dataframe(df, freq):
 
 
 def fill_dataframe(df, fill_method):
+    import re
     if fill_method is not None:
         if (fill_method == 'forward'):
             df = df.groupby(['assetno'], as_index=True).ffill().bfill()
@@ -201,7 +203,7 @@ def fill_dataframe(df, fill_method):
             df = df.groupby(['assetno'], as_index=True).bfill().ffill()
         elif (fill_method == 'drop'):
             df = df.dropna()
-        elif ((str(fill_method).isdigit() is True) | (type(fill_method) != float)):
+        elif bool(re.search('^[\d]*[.]?[\d]+$', str(fill_method))) is True:
             # if fill method is neither of the above, this holds the float/int value that is passed like 0 or 1.5 etc
             df = df.fillna(fill_method)
     df = df.reset_index(drop=True)
@@ -209,7 +211,7 @@ def fill_dataframe(df, fill_method):
 
 
 def df_ts_to_unix(df):
-    df['timestamp'] = ((df['timestamp'] - dt.datetime(1970, 1, 1)).dt.total_seconds() * 1000).astype(long)
+    df['timestamp'] = ((df['timestamp'] - dt.datetime(1970, 1, 1)).dt.total_seconds() * 1000).astype(int)
     return (df)
 
 
@@ -283,11 +285,12 @@ def reader_api(assetno, from_timestamp, to_timestamp, down_sampling_method, down
                 else:
                     df = fill_dataframe(df, None)
 
-        if ((type(df) != str)):
-            if (df.empty):
-                return ('Empty DataFrame!')
-            df['timestamp'] = df.ix[:, 'timestamp'].apply(int)
+            if ((type(df) != str)):
+                if (df.empty):
+                    return ('Empty DataFrame!')
+                df['timestamp'] = df.ix[:, 'timestamp'].apply(int)
 
-        data_dict = json_output_format(df, para_list, assetno)
-        return data_dict
+            data_dict = json_output_format(df, para_list, assetno)
+            return data_dict
+        return df
     return msg

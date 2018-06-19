@@ -10,12 +10,15 @@ from functools import partial
 import matplotlib.cm as cm
 
 class Bayesian_Changept_Detector():
-    def __init__(self,data,is_train=False,data_col_index=0,pthres=0.5,mean_runlen = 100,Nw=10):
+    def __init__(self,data,assetno,is_train=False,data_col_index=0,pthres=0.5,mean_runlen = 100,Nw=10):
         self.algo_name = 'bayesian_change_point_detection'
         self.algo_code = 'bcp'
+        self.algo_type = 'univariate'
         self.istrainable = is_train
         self.data = data
         self.data_col_index = data_col_index
+        self.metric_name = data.columns[data_col_index]
+        self.assetno = assetno
         self.pthres = pthres
         self.mean_runlen = mean_runlen
         self.Nw = Nw
@@ -28,7 +31,7 @@ class Bayesian_Changept_Detector():
         print("Overview of first five rows of dataset : ")
     #     print(data.head())
         ncol = self.data_col_index
-
+        
         ax = data[data.columns[ncol]].plot.hist(figsize=(9,7),bins=100)
         ax.set_title("Histogram of Dataset")
 
