@@ -4,7 +4,6 @@ import numpy as np
 import pandas as pd
 import psycopg2
 import json
-# from 
 import reader_writer.reader as reader
 import reader_writer.checker as checker
 import datetime as dt
@@ -48,28 +47,27 @@ class Postgres_Writer():
         insert_query = """ INSERT INTO {} ({}) VALUES{};""".format(self.table_name,col_names,fmt_col_vals)
         
         status = 0
+        conn = None
+        cur = None
         try:
             conn = psycopg2.connect(**self.db_credentials)
             cur = conn.cursor()
             cur.execute(insert_query)
             conn.commit()
+            cur.close()
+            conn.close()
             print('\n Successfully written into database\n')
+            return error_codes.error_codes['success']
         except psycopg2.DatabaseError as error:
             status = 1
             print("Database error : {}".format(error))
             error_codes.error_codes['db']['message']=str(error)
             return error_codes.error_codes['db']
         finally:
-            try:
                 if cur is not None:
                     cur.close()
                 if conn is not None:
                     conn.close()
-                return error_codes.error_codes['success']
-
-            except Exception as e:
-                error_codes.error_codes['unknown']['message'] = e
-                return error_codes.error_codes['unknown']
         
     def ts_to_unix(self,t):
         return int((t - dt.datetime(1970, 1, 1)).total_seconds()*1000)
@@ -133,7 +131,7 @@ class Postgres_Writer():
                 window = self.window_size
                 sql_query_args['event_name'] = '{}_'.format(original_data.columns[col_index])+anomaly_detector.algo_code+'_anomaly'
                 sql_query_args['event_source'] = anomaly_detector.algo_name
-                sql_query_args['operating_unit_serial_number'] = assetno
+                sql_query_args['operating_unit_serial_number'] = int(assetno)
                 sql_query_args['parameter_list'] = '[{}]'.format(original_data.columns[anomaly_detector.data_col_index])
                 for i in anom_indexes:
                     event_ctxt_info =  {"body":[]}
@@ -167,18 +165,25 @@ class Data_reader():
 
     def read(self):
         
-        response_dict=reader.reader_api(**self.reader_kwargs)
+#         response_json=reader.reader_api(**self.reader_kwargs)
+#         response_dict = json.loads(response_json)
 #         print(response_dict)
-        print("Getting the dataset from the reader....\n")
-        entire_data = self.parse_dict_to_dataframe(response_dict)
+        response_dict=reader.reader_api(**self.reader_kwargs)
+    
+        if(type(response_dict)==str):
+            error_codes.error_codes['data_missing']['message']=response_dict
+            return error_codes.error_codes['data_missing']
+        else:
+            print("Getting the dataset from the reader....\n")
+            entire_data = self.parse_dict_to_dataframe(response_dict)
 
-        try:
-            entire_data.index = entire_data['timestamp'].astype(np.int64)
-            del entire_data['timestamp']
-        except:
-            
-            pass
-        return entire_data
+            try:
+                entire_data.index = entire_data['timestamp'].astype(np.int64)
+                del entire_data['timestamp']
+            except:
+
+                pass
+            return entire_data
     
     def parse_dict_to_dataframe(self,response_dict):
         entire_data_set = []
