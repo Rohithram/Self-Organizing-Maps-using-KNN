@@ -178,7 +178,7 @@ class Postgres_Writer():
                     time_series = (pd.to_datetime(original_data.index[i-window:i+window],unit='ms',utc=True))
                     sql_query_args['event_timestamp'] =  str(pd.to_datetime(original_data.index[i],unit='ms',utc=True))
                     sql_query_args['event_timestamp_epoch'] = str(int(original_data.index[i]))
-
+                    sql_query_args['created_date'] = str(pd.to_datetime(dt.datetime.now(),utc=True))
                     time_around_anoms = ["''{}''".format((t)) for t in time_series]                    
 
                     data_per_metric['name']=metric_name
@@ -259,7 +259,7 @@ class Data_reader():
             cols = list(dataframe.columns)
             cols.insert(0, cols.pop(cols.index('assetno')))
             dataframe = dataframe[cols]
-            print('Asset no : {} \n {} \n'.format(assetno,dataframe.head()))
+#             print('Asset no : {} \n {} \n'.format(assetno,dataframe.head()))
             entire_data_set.append(dataframe)        
 
         return entire_data_set

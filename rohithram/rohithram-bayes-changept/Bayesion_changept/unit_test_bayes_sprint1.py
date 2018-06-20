@@ -2,6 +2,7 @@
 import pandas as pd
 import numpy as np
 import os
+# importing the bayesian changepoint main python file to detect changepoints
 import bayeschangept_sprint1 as bayeschangept
 import warnings
 warnings.filterwarnings('ignore')

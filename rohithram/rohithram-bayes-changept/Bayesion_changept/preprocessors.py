@@ -2,9 +2,16 @@
 
 import numpy as np
 import pandas as pd
+import datetime as dt
 from sklearn import preprocessing 
 
 def to_timestamp(dataframe,date_col_index,time_format='%Y-%m',isweek=False):
+    '''
+    Converts any string datetime object to pandas datetime
+    Gets dataframe and date_column index as required args
+    timeformat is required for rare timeformats like weekly data
+    isweek is bool type which is False for non weekly data
+    '''
     if(isweek!=True):
             dateparse = lambda dates: pd.to_datetime(dates,infer_datetime_format=True)
     else:
@@ -13,6 +20,11 @@ def to_timestamp(dataframe,date_col_index,time_format='%Y-%m',isweek=False):
     return dataframe
 
 def ts_to_unix(t):
+    '''
+    Converts datetime to epoch timestamps
+    Arguments:
+    single datetime object
+    '''
     return int((t - dt.datetime(1970, 1, 1)).total_seconds()*1000)
 
 def normalise_standardise(data):    
@@ -25,11 +37,18 @@ def normalise_standardise(data):
     return data_standardised
 
 def split_the_data(data,test_frac=0.1):
+    '''
+    Splitting the data into train and test with default ratio = 0.1
+    Splits the data in orderly manner not random
+    '''
     train_data = data[0:int(np.ceil((1-test_frac)*data[:,].shape[0])),:]
     test_data = data[-int(np.ceil(test_frac*data[:,].shape[0])):]
     return train_data,test_data
 
 def stationarize(data):
+    '''
+    Stationarises the data
+    '''
     s,t = fit_seasons(data)
 
     if(s is not None):
@@ -41,4 +60,8 @@ def stationarize(data):
     return res_data
 
 def differencing(data,n=1,axis=-1):
+    '''
+    Does differencing on the data and order of differentiation as parameter
+    By default n=1 and axis =-1
+    '''
     return np.diff(data,n=n,axis=axis)

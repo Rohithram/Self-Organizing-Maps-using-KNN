@@ -37,12 +37,14 @@ algo_params_type ={
             'data_col_index':int,
             'pthres':float or int,
             'Nw':int,
-            'mean_runlen':int
+            'mean_runlen':int,
+            'to_plot':bool
         }
 
 def call(assetno,from_timestamp,to_timestamp,con,para_list,source_type='opentsdb',table_name='',
         qry_str='',impute_fill_method='forward',down_sampling_method=None,down_sampling_window=None,freq=None,
-        resample_fill_method=None,to_resample=None,to_impute=None,thres_prob=0.5,samples_to_wait=10,expected_run_length=100):
+        resample_fill_method=None,to_resample=None,to_impute=None,thres_prob=0.5,samples_to_wait=10,
+         expected_run_length=100,to_plot=True):
 
         '''
         Wrapper function which should be called inorder to run the anomaly detection, it has four parts :
@@ -88,7 +90,8 @@ def call(assetno,from_timestamp,to_timestamp,con,para_list,source_type='opentsdb
             'data_col_index':1,
             'pthres':thres_prob,
             'Nw':samples_to_wait,
-            'mean_runlen':expected_run_length
+            'mean_runlen':expected_run_length,
+            'to_plot':to_plot
         }
                     
         try: 

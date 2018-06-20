@@ -1,14 +1,27 @@
- 
+
+# importing required modules 
+# error_codes is python file which has errorcodes dictionary
 import numpy as np
 import error_codes as error_codes
 
 class Type_checker():
     
     def __init__(self,kwargs,ideal_args_type):
+        
+        '''
+        Class Type_checker is used to check parameter mismatches and takes any set of argument dictionary and
+        corresponding argument types
+        '''
         self.ideal_args_type = ideal_args_type
         self.kwargs = kwargs
         
     def params_checker(self):
+        
+        '''
+        Function to check the parameters
+        and returns the corresponding error message when mismatch encountered
+        It also checks for probability threshold between 0 and 1
+        '''
         error_codes.reset()
         kwargs = self.kwargs
         algo_params_type = self.ideal_args_type

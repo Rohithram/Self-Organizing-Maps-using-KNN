@@ -11,7 +11,7 @@ from functools import partial
 import matplotlib.cm as cm
 
 class Bayesian_Changept_Detector():
-    def __init__(self,data,assetno,is_train=False,data_col_index=0,pthres=0.5,mean_runlen = 100,Nw=10):
+    def __init__(self,data,assetno,is_train=False,data_col_index=0,pthres=0.5,mean_runlen = 100,Nw=10,to_plot=True):
         
         '''
         Class which is used to find Changepoints in the dataset with given algorithm parameters.
@@ -27,6 +27,7 @@ class Bayesian_Changept_Detector():
                        nitty gritty math of exponential distributions
         Nw (samples to wait) -> (int) By default 10 is being used for optimal performance. It is the samples after which
                                 we start assigning probailities for it to be a changepoint.
+        to_plot -> True if you want to plot anomalies
         '''
         
         
@@ -41,6 +42,7 @@ class Bayesian_Changept_Detector():
         self.pthres = pthres
         self.mean_runlen = mean_runlen
         self.Nw = Nw
+        self.to_plot = to_plot
 
 
     def detect_anomalies(self):
@@ -59,8 +61,10 @@ class Bayesian_Changept_Detector():
 #         ax.set_title("Histogram of Dataset")
 
         R,maxes = self.findonchangepoint(data[data.columns[ncol]].values)
-        anom_indexes = self.plotonchangepoints(R,maxes)
+        anom_indexes = self.findanomindexes(R,maxes)
         self.anom_indexes = anom_indexes
+        print("\n No of Anomalies detected = %g"%(len(anom_indexes)))
+
         return data,anom_indexes
     
 
@@ -81,7 +85,6 @@ class Bayesian_Changept_Detector():
         Returns -> list of inversion points
         '''
         mu = np.mean(data)
-        sigma = np.mean(data)
         inv_pt = []
         for i in range(len(data)-1):
             if((data[i+1]>mu and data[i]<=mu) or (data[i+1]<mu and data[i]>=mu)):
@@ -89,22 +92,11 @@ class Bayesian_Changept_Detector():
 
         return inv_pt    
     
-
-    def plotonchangepoints(self,R,maxes,nrow=None):
-        '''
-        plots the original data and anomaly indexes as vertical line
-        and plots run length distribution and probability score for each possible run length
-        '''
-        fig,(ax1,ax3) = plt.subplots(2,figsize=[18, 16])
-        ncol = self.data_col_index
-        data = self.data
+    
+    def findanomindexes(self,R,maxes):
         Nw = self.Nw
+        data = self.data
         pthres = self.pthres
-        
-        ltext = 'Column : '+str(ncol+1)+' data with threshold probab = '+ str(pthres)
-
-        ax1.set_title(data.columns[ncol])
-
         cp_probs = np.array(R[Nw,Nw:-1][1:-2])
 
         inversion_pts = self.findthreshold(cp_probs)
@@ -115,6 +107,25 @@ class Bayesian_Changept_Detector():
 
         cp_mapped_probs = pd.Series(cp_probs[max_indexes],index=max_indexes)
         anom_indexes = cp_mapped_probs.index[(np.where(cp_mapped_probs.values>pthres)[0])]
+        
+        if(self.to_plot):
+            self.plotonchangepoints(anom_indexes=anom_indexes,cp_probs=cp_probs)
+        return anom_indexes
+    
+    
+    def plotonchangepoints(self,anom_indexes,cp_probs,nrow=None):
+        '''
+        plots the original data and anomaly indexes as vertical line
+        and plots run length distribution and probability score for each possible run length
+        '''
+        fig,(ax1,ax3) = plt.subplots(2,figsize=[18, 16])
+        ncol = self.data_col_index
+        data = self.data
+        pthres = self.pthres
+        
+        ltext = 'Column : '+str(ncol+1)+' data with threshold probab = '+ str(pthres)
+
+        ax1.set_title(data.columns[ncol])
 
         if(nrow==None):
             ax1.plot(data.values[:,ncol],label=ltext)
@@ -123,10 +134,7 @@ class Bayesian_Changept_Detector():
 
         ax1.legend()
 
-
-        for a in anom_indexes:
-            if(a):
-                ax1.axvline(x=a,color='r')
+        [ax1.axvline(x=a,color='r') for a in anom_indexes]
 
 #         sparsity = 5  # only plot every fifth data for faster display
 #         ax2.pcolor(np.array(range(0, len(R[:,0]), sparsity)), 
@@ -140,6 +148,5 @@ class Bayesian_Changept_Detector():
         ax3.set_title('Change points with Probability')
 
         plt.show()
-        print("\n No of Anomalies detected = %g"%(len(anom_indexes)))
 
         return anom_indexes
