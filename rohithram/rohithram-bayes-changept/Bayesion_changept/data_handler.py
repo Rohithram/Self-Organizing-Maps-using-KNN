@@ -175,12 +175,12 @@ class Postgres_Writer():
                     data_per_asset = {"asset": '',"readings":[]}
                     data_per_metric = {"name":'',"datapoints":''}
 
-                    time_series = (pd.to_datetime(original_data.index[i-window:i+window],unit='ms',utc=True))
+                    time_series = (original_data.index[i-window:i+window])
                     sql_query_args['event_timestamp'] =  str(pd.to_datetime(original_data.index[i],unit='ms',utc=True))
                     sql_query_args['event_timestamp_epoch'] = str(int(original_data.index[i]))
                     sql_query_args['created_date'] = str(pd.to_datetime(dt.datetime.now(),utc=True))
                     time_around_anoms = ["''{}''".format((t)) for t in time_series]                    
-
+                    
                     data_per_metric['name']=metric_name
                     datapoints = (list(zip(time_around_anoms,list(original_data.iloc[i-window:i+window,col_index].values))))
                     data_per_metric['datapoints'] = datapoints
@@ -189,6 +189,8 @@ class Postgres_Writer():
                     event_ctxt_info['body'].append(data_per_asset)
 
                     sql_query_args['event_context_info'] = json.dumps(event_ctxt_info)
+#                     sql_query_args['event_context_info'] = '{}'.format(str(event_ctxt_info))
+                    
                     sql_queries.append(sql_query_args)
 #                     print("event_name: \n {} \n event context info: \n {} \n".format(sql_query_args['event_name'],sql_query_args['event_context_info']))
 
@@ -214,11 +216,24 @@ class Data_reader():
         '''
         Function to read the data using reader api, and parses the json to list of dataframes per asset
         '''
-#         response_json=reader.reader_api(**self.reader_kwargs)
-#         response_dict = json.loads(response_json)
-#         print(response_dict)
-        response_dict=reader.reader_api(**self.reader_kwargs)
+        
+
+        '''
+        To do when new reader works with csv file
+        '''
+#         try:
+#             response_json=reader.reader_api(**self.reader_kwargs)
+#             response_dict = json.loads(response_json)
+#         except Exception as e:
+#             error_codes.error_codes['data_missing']['message'] = response_json
+#             return error_codes.error_codes['data_missing']
+        
     
+        '''
+        To read from old reader file
+        '''
+        response_dict=reader.reader_api(**self.reader_kwargs)
+
         if(type(response_dict)==str):
             error_codes.error_codes['data_missing']['message']=response_dict
             return error_codes.error_codes['data_missing']
@@ -226,13 +241,20 @@ class Data_reader():
             print("Getting the dataset from the reader....\n")
             entire_data = self.parse_dict_to_dataframe(response_dict)
 
-            try:
-                entire_data.index = entire_data['timestamp'].astype(np.int64)
-                del entire_data['timestamp']
-            except:
-
-                pass
-            return entire_data
+        '''
+        To do when new reader works
+        '''
+#         print("Getting the dataset from the reader....\n")
+#         entire_data = self.parse_dict_to_dataframe(response_dict)
+#         print(response_dict)
+      
+        try:
+            entire_data.index = entire_data['timestamp'].astype(np.int64)
+            del entire_data['timestamp']
+        except:
+            pass
+        return entire_data
+    
     
     def parse_dict_to_dataframe(self,response_dict):
         

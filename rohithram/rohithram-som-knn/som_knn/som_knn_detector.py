@@ -20,7 +20,8 @@ import matplotlib.pyplot as plt
 from matplotlib.pylab import rcParams
 import datetime as dt
 import time
-
+import os
+import pickle 
 
 from scipy.stats import gaussian_kde
 from mpl_toolkits.mplot3d import Axes3D
@@ -28,12 +29,34 @@ from mpl_toolkits.mplot3d import Axes3D
 #importing error_codes
 import error_codes as error_codes
 import som_knn_module
-
+import traceback
 import warnings
 warnings.filterwarnings('ignore')
 
 rcParams['figure.figsize'] = 12, 9
 rcParams[ 'axes.grid']=True
+
+
+def save_model(model,metric_names,filename='som_trained_model',target_dir=r"Anomaly Detection Models/Machine Learning Models"):
+    
+    try:
+        time_now = str(pd.to_datetime(dt.datetime.now(),utc=True))
+        filename = filename+'_{}_{}'.format('_'.join(metric_names),time_now)
+        filepath = r"{}.pkl".format(filename)
+#         print(filepath)
+#         filepath = os.path.join(target_dir,filename)
+        
+        filehandler = open('som_model_1.pkl', 'wb')
+        pickle.dump(model, filehandler)
+        print("\nSaved model : {} in {},\nLast Checkpointed at: {}\n".format(filename,target_dir,time_now))
+    except Exception as e:
+        traceback.print_exc()
+        pass
+#         error_codes.error_codes['unknown']['message'] = e
+#         return error_codes.error_codes['unknown']
+def load_model():
+    filehandler = open('som_model_1.pkl', 'rb')
+    return pickle.load(filehandler)
 
 class Som_Detector():
     def __init__(self,data,assetno,metric_names,model_input_args,training_args,anom_thres=7):
@@ -64,6 +87,7 @@ class Som_Detector():
         self.metric_name = metric_names
         self.assetno = assetno
         self.anom_indexes = None
+        self.data_col_index = None
         self.model_input_args = model_input_args
         self.training_args = training_args
         self.anom_thres = anom_thres
@@ -80,7 +104,12 @@ class Som_Detector():
         print("Shape of the dataset : ")
         print(data.shape)
         if(self.istrain):
-            net,data_set,train_data,test_data = train_som(data,self.model_input_args,self.training_args)
+            net,data_set,train_data,test_data = train_som(torch.from_numpy(data[data.columns[1:]].values),
+                                                          self.model_input_args,self.training_args)
+            res = save_model(net,metric_names = self.metric_name)
+            if(res!=None):
+                return res
+            
             anom_indexes = test(net,data_set[:,].numpy(),anom_thres=anom_thres,diff_order=diff_order)
         else:
             anom_indexes = test(net,test_data,anom_thres=anom_thres,diff_order=diff_order)
@@ -90,6 +119,8 @@ class Som_Detector():
         print("\n No of Anomalies detected = %g"%(len(anom_indexes)))
 
         return anom_indexes
+
+
 class TimeSeries_Dataset(Dataset):
     """Time series dataset."""
 
@@ -160,18 +191,23 @@ def network_dimensions(train_data,N=100):
 def test(net,evaluateData,anom_thres=7,diff_order=1,to_plot=True):
         
         original_data = evaluateData
-        res_evaluateData = np.diff(evaluateData.reshape(-1),n=diff_order).reshape(-1,1)
+        no_cols = original_data.shape[-1]
+        print("Input data's shape: {}".format(original_data.shape))
+        res_evaluateData = np.diff(evaluateData,n=diff_order,axis=0).reshape(-1,no_cols)
+        print("Differenced data shape {}".format(res_evaluateData.shape))
         
+#         res_evaluateData.reshape(-1,original_data.shape[-1])
         # Fit the anomaly detector and apply to the evaluateData data
         anomaly_metrics = net.evaluate(res_evaluateData) # Evaluate on the evaluateData data
-        
+        print(anomaly_metrics.shape)
         anomaly_metrics = anomaly_metrics/np.linalg.norm(anomaly_metrics)
 #         k=anom_thres
         thres = anom_thres*(1/np.sqrt(len(anomaly_metrics)))
 #         thres = np.mean(anomaly_metrics)+k*np.std(anomaly_metrics)
         selector = anomaly_metrics > thres
-#         anom_indexes = np.arange(len(res_evaluateData))[selector]
-        anom_indexes = np.arange(len(original_data)-diff_order)[selector]
+        anom_indexes = np.arange(len(res_evaluateData))[selector]
+#         anom_indexes = anom_indexes+diff_order
+#         anom_indexes = np.arange(original_data.shape[0]-diff_order)[selector]
         
         
         if(to_plot):
@@ -202,20 +238,25 @@ def test(net,evaluateData,anom_thres=7,diff_order=1,to_plot=True):
                 fig2 = plt.figure(figsize=(20,10))
                 plt.plot(res_evaluateData[:,])
                 plt.title("Dataset after differencing marked with anomalies")
-                plt.scatter(x=anom_indexes,y=res_evaluateData[anom_indexes],color='r')
+#                 plt.scatter(x=anom_indexes,y=res_evaluateData[anom_indexes,0],color='r')
+                [plt.axvline(x=ind,color='r') for ind in anom_indexes]
                 plt.show();
 
                 fig3 = plt.figure(figsize=(20,10))
                 plt.plot(original_data)
                 plt.title("Exact Dataset with detectedanomalies")
-                plt.scatter(x=anom_indexes,y=original_data[anom_indexes],color='r')
+#                 plt.scatter(x=anom_indexes,y=original_data[anom_indexes,0],color='r')
+                [plt.axvline(x=ind,color='r') for ind in anom_indexes]
+
                 plt.show();
 
             else:
                 fig3 = plt.figure(figsize=(20,10))
                 plt.plot(original_data)
                 plt.title("Exact Dataset with detectedanomalies")
-                plt.scatter(x=anom_indexes,y=original_data[anom_indexes],color='r')
+#                 plt.scatter(x=anom_indexes,y=original_data[anom_indexes,0],color='r')
+                [plt.axvline(x=ind,color='r') for ind in anom_indexes]
+
                 plt.show();
         
         
