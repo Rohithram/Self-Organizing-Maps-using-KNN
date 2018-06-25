@@ -31,35 +31,40 @@ import error_codes as error_codes
 import som_knn_module
 import traceback
 import warnings
+from preprocessors import *
 warnings.filterwarnings('ignore')
 
 rcParams['figure.figsize'] = 12, 9
 rcParams[ 'axes.grid']=True
 
 
-def save_model(model,metric_names,filename='som_trained_model',target_dir=r"Anomaly Detection Models/Machine Learning Models"):
+def save_model(model,metric_names,filename='som_trained_model',target_dir="Anomaly_Detection_Models/Machine_Learning_Models"):
     
     try:
-        time_now = str(pd.to_datetime(dt.datetime.now(),utc=True))
-        filename = filename+'_{}_{}'.format('_'.join(metric_names),time_now)
-        filepath = r"{}.pkl".format(filename)
-#         print(filepath)
-#         filepath = os.path.join(target_dir,filename)
+        time_now = ts_to_unix(pd.to_datetime(dt.datetime.now()))
+        metric_names = [''.join(e for e in metric if e.isalnum()) for metric in metric_names]
+        filename = filename+'_{}_{}'.format('_'.join(metric_names),str(time_now))
+
+        filepath = os.path.join(target_dir,filename)
         
-        filehandler = open('som_model_1.pkl', 'wb')
+
+        filehandler = open(filepath, 'wb')
         pickle.dump(model, filehandler)
         print("\nSaved model : {} in {},\nLast Checkpointed at: {}\n".format(filename,target_dir,time_now))
+        return filepath,time_now
+    
     except Exception as e:
         traceback.print_exc()
-        pass
-#         error_codes.error_codes['unknown']['message'] = e
-#         return error_codes.error_codes['unknown']
-def load_model():
-    filehandler = open('som_model_1.pkl', 'rb')
+        print("Error occured while saving model\n")
+        error_codes.error_codes['unknown']['message']=e
+        return error_codes.error_codes['unknown']
+    
+def load_model(filepath):
+    filehandler = open(filepath, 'rb')
     return pickle.load(filehandler)
 
 class Som_Detector():
-    def __init__(self,data,assetno,metric_names,model_input_args,training_args,anom_thres=7):
+    def __init__(self,data,assetno,metric_names,model_input_args,training_args,eval_args):
         
         '''
         Class which is used to find Changepoints in the dataset with given algorithm parameters.
@@ -82,7 +87,12 @@ class Som_Detector():
         self.algo_name = 'Self Organizing Map AD'
         self.algo_code = 'som'
         self.algo_type = 'multivariate'
-        self.istrain = training_args['is_train']
+        
+        if(training_args is not None):
+            self.istrain = training_args['is_train']
+        else:
+            self.istrain = False
+            
         self.data = data
         self.metric_name = metric_names
         self.assetno = assetno
@@ -90,33 +100,47 @@ class Som_Detector():
         self.data_col_index = None
         self.model_input_args = model_input_args
         self.training_args = training_args
-        self.anom_thres = anom_thres
+        self.eval_args = eval_args
 
     def detect_anomalies(self):
         
         '''
         Detects anomalies and returns data and anomaly indexes
         '''
-        data = self.data
-        anom_thres = self.anom_thres
-        diff_order = self.model_input_args['diff_order']
         
-        print("Shape of the dataset : ")
-        print(data.shape)
-        if(self.istrain):
-            net,data_set,train_data,test_data = train_som(torch.from_numpy(data[data.columns[1:]].values),
-                                                          self.model_input_args,self.training_args)
-            res = save_model(net,metric_names = self.metric_name)
-            if(res!=None):
-                return res
-            
-            anom_indexes = test(net,data_set[:,].numpy(),anom_thres=anom_thres,diff_order=diff_order)
-        else:
-            anom_indexes = test(net,test_data,anom_thres=anom_thres,diff_order=diff_order)
+        data = torch.from_numpy(self.data[self.data.columns[1:]].values)
+        
+        
+        print("Shape of the Entire dataset : {}\n".format(data.shape))
+#         print(data.shape)
 
-        self.anom_indexes = anom_indexes
+        if(self.istrain):
+            data_set,train_data,test_data = process_data(data=data,test_frac=self.training_args['test_frac'],
+                                                        to_plot=self.training_args['to_plot'])
+            entire_data = data_set[:,].numpy()
+
+            diff_order = self.model_input_args['diff_order']
+            net = train_som(train_data,self.model_input_args,self.training_args)
+            model_path = save_model(net,metric_names = self.metric_name)
+            
+            if(type(model_path)!=str and type(model_path)==dict):
+                #meaning some unknown error happened while saving the model
+                return model_path
+            
+            #Validation on entire data after training on the train data
+            anom_indexes = test(net,entire_data,to_plot=self.training_args['to_plot'])
+            self.anom_indexes = anom_indexes
+
+        else:
+            model_path = self.eval_args['model_path']
+            anom_thres = self.eval_args['anom_thres']
+            eval_net = load_model(model_path)
+            anom_indexes = test(eval_net,data.numpy(),anom_thres=anom_thres,to_plot=self.eval_args['to_plot'])
+            self.anom_indexes = anom_indexes
+
+            print("\n No of Anomalies detected = %g"%(len(anom_indexes)))
+
           
-        print("\n No of Anomalies detected = %g"%(len(anom_indexes)))
 
         return anom_indexes
 
@@ -145,13 +169,17 @@ class TimeSeries_Dataset(Dataset):
         
         return (sample)
 
-def split_the_data(data,test_frac=0.1):
+def split_the_data(data,test_frac=0.0):
     '''
     Splitting the data into train and test with default ratio = 0.1
     Splits the data in orderly manner not random
     '''
-    train_data = data[0:int(np.ceil((1-test_frac)*data[:,].shape[0])),:]
-    test_data = data[-int(np.ceil(test_frac*data[:,].shape[0])):]
+    if(test_frac is not None):
+        train_data = data[0:int(np.ceil((1-test_frac)*data[:,].shape[0])),:]
+        test_data = data[-int(np.ceil(test_frac*data[:,].shape[0])):]
+    else:
+        train_data = data
+        test_data = torch.empty()
     return train_data,test_data
 
 def plot_dataset(data):
@@ -166,6 +194,7 @@ def plot_dataset(data):
 def process_data(data,test_frac,to_plot=True):
     data_set = TimeSeries_Dataset(data)
     train_data,test_data = split_the_data(data_set,test_frac=test_frac)
+    print("Shape of Training dataset :{} and Test dataset :{}\n".format(train_data.shape,test_data.shape))
     if(to_plot):
         plot_dataset(train_data.numpy())
     return data_set,train_data,test_data
@@ -188,10 +217,11 @@ def network_dimensions(train_data,N=100):
     col_dim = int(np.ceil(approx_network_size/row_dim))
     return row_dim,col_dim
 
-def test(net,evaluateData,anom_thres=7,diff_order=1,to_plot=True):
+def test(net,evaluateData,anom_thres=3,to_plot=True):
         
         original_data = evaluateData
         no_cols = original_data.shape[-1]
+        diff_order = net.diff_order
         print("Input data's shape: {}".format(original_data.shape))
         res_evaluateData = np.diff(evaluateData,n=diff_order,axis=0).reshape(-1,no_cols)
         print("Differenced data shape {}".format(res_evaluateData.shape))
@@ -268,7 +298,7 @@ def test(net,evaluateData,anom_thres=7,diff_order=1,to_plot=True):
         return anom_indexes
 
 
-def train(net,train_loader,epochs):
+def train_loop(net,train_loader,epochs):
     curr_batch_iter = 0
     for epoch in range(epochs):
         print("Epoch : {} completed \n Max Bmu index : {}".
@@ -281,10 +311,8 @@ def train(net,train_loader,epochs):
     print("\n Training successfully completed \n")
     return net
 
-def train_som(data,model_input_args,training_args):
-    
-    data_set,train_data,test_data = process_data(data=data,test_frac=training_args['test_frac'])
-    
+def train_som(train_data,model_input_args,training_args):
+        
     if(model_input_args['som_shape']!=None):
         row_dim,col_dim = network_dimensions(train_data,model_input_args['N'])
     else:
@@ -317,18 +345,16 @@ def train_som(data,model_input_args,training_args):
     
     print("Network dimensions are {} x {} \n".format(row_dim,col_dim))
     diff_order = model_input_args['diff_order']
-    del model_input_args['diff_order']
     del model_input_args['N']
     net = som_knn_module.Som_net(**model_input_args)
 
     
-    res_series = (np.diff(train_data.numpy().reshape(-1),n=diff_order))
-    
-    train_data_diff = torch.from_numpy(res_series)
+    res_train_data = (np.diff(train_data.numpy(),n=diff_order,axis=0).reshape(-1,train_data.numpy().shape[-1]))
+    print("\nShape of differenced Training data : {}\n".format(res_train_data.shape))
+    train_data_diff = torch.from_numpy(res_train_data)
 
     train_loader = torch.utils.data.DataLoader(train_data_diff, batch_size=batch_size,shuffle=True)
     
-#     if(training_args['freeze']==False):
-    net = train(net=net,epochs=epochs,train_loader=train_loader)
+    net = train_loop(net=net,epochs=epochs,train_loader=train_loader)
     
-    return net,data_set,train_data,test_data
+    return net

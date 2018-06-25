@@ -9,6 +9,8 @@ import bayesian_changepoint_detection.offline_changepoint_detection as offcd
 import bayesian_changepoint_detection.online_changepoint_detection as oncd
 from functools import partial
 import matplotlib.cm as cm
+# import numba as nb
+from numba import jit,prange,autojit
 
 class Bayesian_Changept_Detector():
     def __init__(self,data,assetno,is_train=False,data_col_index=0,pthres=0.5,mean_runlen = 100,Nw=10,to_plot=True):
@@ -53,7 +55,7 @@ class Bayesian_Changept_Detector():
         data = self.data
         print("Shape of the dataset : ")
         print(data.shape)
-        print("Overview of first five rows of dataset : ")
+#         print("Overview of first five rows of dataset : ")
     #     print(data.head())
         ncol = self.data_col_index
         
@@ -67,7 +69,7 @@ class Bayesian_Changept_Detector():
 
         return data,anom_indexes
     
-
+    
     def findonchangepoint(self,data):
         '''
         finds the changepoints and returns the run lenth probability matrix and indexes of maximum run lengths

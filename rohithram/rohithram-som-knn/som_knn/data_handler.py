@@ -156,7 +156,7 @@ class Postgres_Writer():
                 window = self.window_size
                 sql_query_args['event_name'] = '{}_'.format(original_data.columns[col_index])+anomaly_detector.algo_code+'_anomaly'
                 sql_query_args['event_source'] = anomaly_detector.algo_name
-                sql_query_args['operating_unit_serial_number'] = int(assetno)
+                sql_query_args['operating_unit_serial_number'] = str(assetno)
                 sql_query_args['parameter_list'] = '[{}]'.format(original_data.columns[anomaly_detector.data_col_index])
                 for i in anom_indexes:
                     event_ctxt_info =  {"body":[]}
@@ -208,7 +208,7 @@ class Postgres_Writer():
 
                     sql_query_args['event_name'] = '{}_'.format('_'.join(metric_names))+anomaly_detector.algo_code+'_anomaly'
                     sql_query_args['event_source'] = anomaly_detector.algo_name
-                    sql_query_args['operating_unit_serial_number'] = int(assetno)
+                    sql_query_args['operating_unit_serial_number'] = str(assetno)
                     sql_query_args['parameter_list'] = '[{}]'.format(','.join(metric_names))
 
                     for i in anom_indexes:
@@ -250,38 +250,17 @@ class Data_reader():
     of dataframe and assetno being the first column i.e column index 0.
     '''
     
-    def __init__(self,reader_kwargs):
+    def __init__(self,json_data):
         
-        #takes reader arguments 
-        self.reader_kwargs = reader_kwargs
+        #takes json data
+        self.json_data = json_data
         print("Data reader initialised \n")
         error_codes.reset()
 
     def read(self):
-        '''
-        Function to read the data using reader api, and parses the json to list of dataframes per asset
-        '''
-#         response_json=reader.reader_api(**self.reader_kwargs)
-#         response_dict = json.loads(response_json)
-#         print(response_dict)
-        response_dict=reader.reader_api(**self.reader_kwargs)
-    
-        '''
-        To do when new reader works with csv file
-        '''
-#         try:
-#             response_json=reader.reader_api(**self.reader_kwargs)
-#             response_dict = json.loads(response_json)
-#         except Exception as e:
-#             error_codes.error_codes['data_missing']['message'] = response_json
-#             return error_codes.error_codes['data_missing']
-
-
-        '''
-        To read from old reader file
-        '''
-        response_dict=reader.reader_api(**self.reader_kwargs)
-
+        
+        response_dict = self.json_data
+        
         if(type(response_dict)==str):
             error_codes.error_codes['data_missing']['message']=response_dict
             return error_codes.error_codes['data_missing']

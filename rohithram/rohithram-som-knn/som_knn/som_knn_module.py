@@ -41,10 +41,10 @@ warnings.filterwarnings('ignore')
 rcParams['figure.figsize'] = 12, 9
 rcParams[ 'axes.grid']=True
 plt.ion()   # interactive mode
-class Som_net():
+class Som_net(nn.Module):
     
     def __init__(self,som_shape,input_feature_size,time_constant,n_iterations,
-                 minNumPerBmu=1,no_of_neighbors=3,initial_radius=1,initial_learning_rate=0.4):
+                 minNumPerBmu=1,no_of_neighbors=3,initial_radius=1,initial_learning_rate=0.4,diff_order=1):
         super(Som_net, self).__init__()
         
         self.shape = som_shape
@@ -59,6 +59,7 @@ class Som_net():
         self.neuron_locations = self.neuron_locations(*self.shape)
         self.minNumPerBmu = minNumPerBmu
         self.no_of_neighbors = no_of_neighbors
+        self.diff_order = diff_order
 #         self.allowed_nodes = torch.from_numpy(np.array())
         
     def findBMU(self,x_batch):

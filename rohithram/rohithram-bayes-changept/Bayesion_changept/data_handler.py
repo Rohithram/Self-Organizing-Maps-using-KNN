@@ -108,35 +108,23 @@ class Postgres_Writer():
             '''
             for anomaly_detector in self.anomaly_detectors:
                 
-                queries = self.make_query_args(anomaly_detector,sql_query_args)
+                queries = self.make_query_args_univariate(anomaly_detector,sql_query_args)
                 [col_vals.append(list(query.values())) for query in queries]
 
         else:
             '''
             in construction - will be updated shortly for multivariate case
             '''
-            assetlist = [anomaly_detector.assetno for anomaly_detector in self.anomaly_detectors]
-            df_assets = pd.DataFrame(np.array(assetlist),columns=['assetno'])
-            asset_groups = df_assets.groupby('assetno')
             
-            for assetno,metrics_per_asset in asset_groups:
+            print("\nMultivariate writer initialised")
+            
+            for anomaly_detector in self.anomaly_detectors:
+                assetno = anomaly_detector.assetno
 #                 print("Assetno : {}\n".format(assetno))
-                query_per_metric = []
-                data_per_asset = {"asset":assetno,"readings":[]}
-                event_ctxt_info =  {"body":[data_per_asset]}
                 sql_query_args = self.sql_query_args
-                for index in list(metrics_per_asset.index):
-                    
-                    queries = (self.make_query_args(self.anomaly_detectors[index],sql_query_args))
-                    for query in queries:
-                        event_ctxt_info_exact = json.loads(query['event_context_info'])
-                        sql_query_args.update(query)
-                        event_ctxt_info['body'][0]['readings'].append(event_ctxt_info_exact['body'][0]['readings'][0])
-                        sql_query_args['parameter_list'] = '{}'.format(list(self.anomaly_detectors[index].data.columns[1:]))
-                        sql_query_args['event_context_info'] = json.dumps(event_ctxt_info)
-
-                col_vals.append(list(sql_query_args.values()))
-#                 print('Assetno : {} \n sql_query: \n{} \n'.format(assetno,sql_query_args))
+                queries = self.make_query_args_multivariate(anomaly_detector,sql_query_args)
+                
+                [col_vals.append(list(query.values())) for query in queries]
         
         # if there are nothing to write don't connect to db
         if(len(col_vals)!=0):
@@ -146,7 +134,7 @@ class Postgres_Writer():
             return error_codes.error_codes['success']
         
         
-    def make_query_args(self,anomaly_detector,sql_query_args):
+    def make_query_args_univariate(self,anomaly_detector,sql_query_args):
         
         '''
         Function to map the details about an anomaly to columns present in log asset timeline table
@@ -168,7 +156,7 @@ class Postgres_Writer():
                 window = self.window_size
                 sql_query_args['event_name'] = '{}_'.format(original_data.columns[col_index])+anomaly_detector.algo_code+'_anomaly'
                 sql_query_args['event_source'] = anomaly_detector.algo_name
-                sql_query_args['operating_unit_serial_number'] = int(assetno)
+                sql_query_args['operating_unit_serial_number'] = str(assetno)
                 sql_query_args['parameter_list'] = '[{}]'.format(original_data.columns[anomaly_detector.data_col_index])
                 for i in anom_indexes:
                     event_ctxt_info =  {"body":[]}
@@ -180,7 +168,7 @@ class Postgres_Writer():
                     sql_query_args['event_timestamp_epoch'] = str(int(original_data.index[i]))
                     sql_query_args['created_date'] = str(pd.to_datetime(dt.datetime.now(),utc=True))
                     time_around_anoms = ["''{}''".format((t)) for t in time_series]                    
-                    
+
                     data_per_metric['name']=metric_name
                     datapoints = (list(zip(time_around_anoms,list(original_data.iloc[i-window:i+window,col_index].values))))
                     data_per_metric['datapoints'] = datapoints
@@ -189,12 +177,69 @@ class Postgres_Writer():
                     event_ctxt_info['body'].append(data_per_asset)
 
                     sql_query_args['event_context_info'] = json.dumps(event_ctxt_info)
-#                     sql_query_args['event_context_info'] = '{}'.format(str(event_ctxt_info))
-                    
                     sql_queries.append(sql_query_args)
-#                     print("event_name: \n {} \n event context info: \n {} \n".format(sql_query_args['event_name'],sql_query_args['event_context_info']))
 
         return (sql_queries)
+
+    def make_query_args_multivariate(self,anomaly_detector,sql_query_args):
+
+            '''
+            Function to map the details about an anomaly to columns present in log asset timeline table
+            Arguments :
+            Takes in single anomaly detector and loops over the anomalies and also sql query arguments.
+            Returns sql queries -> list of all mapped sql column values for each anomaly
+            '''
+
+            sql_queries = []
+
+            #Proceed only if no of anomalies detected are not zero
+
+            if(anomaly_detector.anom_indexes is not None and len(anomaly_detector.anom_indexes)!=0):
+
+                    anom_indexes = anomaly_detector.anom_indexes
+                    try:
+                        original_data = pd.DataFrame(anomaly_detector.data.numpy())
+                    except:
+                        original_data = anomaly_detector.data
+
+                    metric_names = anomaly_detector.metric_name
+                    assetno = anomaly_detector.assetno
+                    window = self.window_size
+
+                    sql_query_args['event_name'] = '{}_'.format('_'.join(metric_names))+anomaly_detector.algo_code+'_anomaly'
+                    sql_query_args['event_source'] = anomaly_detector.algo_name
+                    sql_query_args['operating_unit_serial_number'] = str(assetno)
+                    sql_query_args['parameter_list'] = '[{}]'.format(','.join(metric_names))
+
+                    for i in anom_indexes:
+
+                        time_series = (original_data.index[i-window:i+window])
+                        sql_query_args['event_timestamp'] =  str(pd.to_datetime(original_data.index[i],unit='ms',utc=True))
+                        sql_query_args['event_timestamp_epoch'] = str(int(original_data.index[i]))
+                        sql_query_args['created_date'] = str(pd.to_datetime(dt.datetime.now(),utc=True))
+                        time_around_anoms = ["''{}''".format((t)) for t in time_series]    
+
+                        event_ctxt_info =  {"body":[]}
+                        data_per_asset = {"asset": '',"readings":[]}
+                        data_per_asset['asset'] = assetno
+
+                        for k,metric_name in enumerate(metric_names):
+#                             print("Metric : {}".format(metric_name))
+                            datapoints = (list(zip(time_around_anoms,
+                                                   list(original_data.iloc[i-window:i+window,1+k].values))))
+                            
+                            data_per_metric = {"name":metric_name,"datapoints":datapoints}
+
+                            data_per_asset['readings'].append(data_per_metric)
+                            
+                        event_ctxt_info['body'].append(data_per_asset)
+#                         print("Event ctxt info : {}\n".format(event_ctxt_info))
+                        sql_query_args['event_context_info'] = json.dumps(event_ctxt_info)
+#                         print("sql query : \n{}\n".format(sql_query_args))
+                        sql_queries.append(sql_query_args)
+    #                     print("event_name: \n {} \n event context info: \n {} \n".format(sql_query_args['event_name'],sql_query_args['event_context_info']))
+
+            return (sql_queries)
 class Data_reader():
     
     
@@ -205,35 +250,17 @@ class Data_reader():
     of dataframe and assetno being the first column i.e column index 0.
     '''
     
-    def __init__(self,reader_kwargs):
+    def __init__(self,json_data):
         
-        #takes reader arguments 
-        self.reader_kwargs = reader_kwargs
+        #takes json data
+        self.json_data = json_data
         print("Data reader initialised \n")
         error_codes.reset()
 
     def read(self):
-        '''
-        Function to read the data using reader api, and parses the json to list of dataframes per asset
-        '''
         
-
-        '''
-        To do when new reader works with csv file
-        '''
-#         try:
-#             response_json=reader.reader_api(**self.reader_kwargs)
-#             response_dict = json.loads(response_json)
-#         except Exception as e:
-#             error_codes.error_codes['data_missing']['message'] = response_json
-#             return error_codes.error_codes['data_missing']
+        response_dict = self.json_data
         
-    
-        '''
-        To read from old reader file
-        '''
-        response_dict=reader.reader_api(**self.reader_kwargs)
-
         if(type(response_dict)==str):
             error_codes.error_codes['data_missing']['message']=response_dict
             return error_codes.error_codes['data_missing']
@@ -252,9 +279,9 @@ class Data_reader():
             entire_data.index = entire_data['timestamp'].astype(np.int64)
             del entire_data['timestamp']
         except:
+
             pass
         return entire_data
-    
     
     def parse_dict_to_dataframe(self,response_dict):
         

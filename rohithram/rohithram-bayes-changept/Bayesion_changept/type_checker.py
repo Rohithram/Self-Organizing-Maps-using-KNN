@@ -40,7 +40,7 @@ class Type_checker():
             except:
                 pass
             
-            if(type(kwargs[key])!=(algo_params_type[key])):
+            if(kwargs[key]!=None and type(kwargs[key])!=(algo_params_type[key])):
                 error_codes.error_codes['param']['data']['argument']=key
                 error_codes.error_codes['param']['data']['value']=kwargs[key]
                 error_codes.error_codes['param']['message']='should be of type {}'.format((algo_params_type[key]))
