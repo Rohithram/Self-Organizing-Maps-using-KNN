@@ -2,7 +2,7 @@
 
 import pandas as pd
 import numpy as np
-import error_codes
+from anomaly_detectors.utils import error_codes
 
 
 def make_ack_json(anomaly_detectors):

@@ -6,11 +6,11 @@ import psycopg2
 import json
 
 #importing reader and checker for reading data
-import reader as reader
-import checker as checker
+from anomaly_detectors.reader_writer import reader as reader
+from anomaly_detectors.reader_writer import checker as checker
 import datetime as dt
 # error code is python file which contains dictionary of mapped error codes and messages for different errors
-import error_codes as error_codes
+from anomaly_detectors.utils import error_codes as error_codes
 
 import warnings
 warnings.filterwarnings('ignore')

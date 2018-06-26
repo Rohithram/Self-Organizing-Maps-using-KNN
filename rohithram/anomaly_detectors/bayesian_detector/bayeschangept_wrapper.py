@@ -12,19 +12,22 @@ import time
 import os
 
 # Importing reader and checker python files as modules
-import db_properties as db_props
-import writer_configs as write_args
+from anomaly_detectors.reader_writer import db_properties as db_props
+from anomaly_detectors.reader_writer import writer_configs as write_args
+
 import psycopg2
 
-from preprocessors import *
-from data_handler import *
-from bayesian_changept_detector import *
+from anomaly_detectors.utils.preprocessors import *
+from anomaly_detectors.utils.data_handler import *
+# from anomaly_detectors.bayesian_detectorbayesian_changept_detector import *
 
-import error_codes as error_codes
-import type_checker as type_checker
-import csv_prep_for_reader as csv_helper
-import reader_helper
-import make_ackg_json
+from anomaly_detectors.utils import error_codes as error_codes
+from anomaly_detectors.utils import type_checker as type_checker
+from anomaly_detectors.utils import csv_prep_for_reader as csv_helper
+from anomaly_detectors.utils import reader_helper
+from anomaly_detectors.utils import make_ackg_json
+from anomaly_detectors.bayesian_detector import bayesian_changept_detector
+
 import json
 import traceback
 import warnings
@@ -117,7 +120,9 @@ def main(json_data,mode=mode_options[2],thres_prob=0.5,samples_to_wait=10,expect
                         algo_kwargs['data_col_index'] = data_col
                         print("\nAnomaly detection for AssetNo : {} , Metric : {}\n ".format(assetno,
                                                                                              data_per_asset.columns[data_col]))
-                        anomaly_detector = Bayesian_Changept_Detector(data_per_asset,assetno=assetno,**algo_kwargs)
+                        anomaly_detector = bayesian_changept_detector.Bayesian_Changept_Detector(data_per_asset,
+                                                                                                 assetno=assetno,
+                                                                                                 **algo_kwargs)
                         data,anom_indexes = anomaly_detector.detect_anomalies()
                         
                             
