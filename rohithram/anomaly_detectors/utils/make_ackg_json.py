@@ -2,12 +2,13 @@
 
 import pandas as pd
 import numpy as np
-import error_codes
-
+from anomaly_detectors.utils import error_codes
 
 def make_ack_json(anomaly_detectors):
     
     bad_response = {"code":"204","status" : "No Content","message": "Input Data is Empty"}
+    no_anom_response = {"code":"200","status" : "OK","message": "No Anomalies detected"}
+    
     ack_json = lambda:{"header":'',"body":[]}
     anom_per_asset  = lambda:{"asset": "<asset_serial_number>","anomalies":[]}
     anom_per_metric = lambda:{ "name":"<TagName>","datapoints":[]}
@@ -26,7 +27,7 @@ def make_ack_json(anomaly_detectors):
                 
                 data = anomaly_detector.data
                 anom_indexes = anomaly_detector.anom_indexes
-                if(len(data)!=0):
+                if(len(data)!=0 and len(anom_indexes)!=0):
                     ack_json1['header'] = error_codes.error_codes['success']
                     anom_per_asset1['asset'] = anomaly_detector.assetno
 
@@ -35,6 +36,8 @@ def make_ack_json(anomaly_detectors):
                     anom_timestamps = list(zip(data.index[anom_indexes],data.index[anom_indexes]))
                     anom_per_metric1['datapoints'] = anom_timestamps
                     anom_per_asset1['anomalies'].append(anom_per_metric1)
+                elif(len(anom_indexes)==0):
+                    ack_json1['header'] = no_anom_response
                 else:
                     ack_json1['header'] = bad_response
                     return ack_json1
@@ -48,7 +51,7 @@ def make_ack_json(anomaly_detectors):
 
             data = anomaly_detector.data
             anom_indexes = anomaly_detector.anom_indexes
-            if(len(data)!=0):
+            if(len(data)!=0 and len(anom_indexes)!=0):
                 ack_json1['header'] = error_codes.error_codes['success']
                 anom_per_asset1 = anom_per_asset()
                 anom_per_asset1['asset'] = anomaly_detector.assetno
@@ -63,7 +66,8 @@ def make_ack_json(anomaly_detectors):
                     anom_per_asset1['anomalies'].append(anom_per_metric1)
 
                 ack_json1['body'].append(anom_per_asset1)
-
+            elif(len(anom_indexes)==0):
+                ack_json1['header'] = no_anom_response
             else:
                 ack_json1['header'] = bad_response
             

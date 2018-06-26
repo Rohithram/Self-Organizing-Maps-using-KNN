@@ -23,22 +23,27 @@ import time
 import os
 
 
-# Importing db properties and writer args python files as modules
-import db_properties as db_props
-import writer_configs as write_args
-import csv_prep_for_reader as csv_reader
-import make_ackg_json
+# Importing reader and checker python files as modules
+from anomaly_detectors.reader_writer import db_properties as db_props
+from anomaly_detectors.reader_writer import writer_configs as write_args
 
 import psycopg2
 
-from preprocessors import *
-from data_handler import *
-import som_knn_detector as som_detector
-import som_knn_module as som_model
-import reader_helper 
+from anomaly_detectors.utils.preprocessors import *
+from anomaly_detectors.utils.data_handler import *
+# from anomaly_detectors.bayesian_detectorbayesian_changept_detector import *
 
-import error_codes as error_codes
-import type_checker as type_checker
+from anomaly_detectors.utils import error_codes as error_codes
+from anomaly_detectors.utils import type_checker as type_checker
+from anomaly_detectors.utils import csv_prep_for_reader as csv_helper
+from anomaly_detectors.utils import reader_helper
+from anomaly_detectors.utils import make_ackg_json
+
+
+from anomaly_detectors.som_knn_detector import som_knn_detector as som_detector
+from anomaly_detectors.som_knn_detector import som_knn_module as som_model
+
+
 import json
 import traceback
 
@@ -75,7 +80,6 @@ ideal_eval_kwargs_type = {
         }
 
 mode_options = ['DETECT','LOG','DETECT_LOG']
-
 
 def train(json_data,mode=mode_options[2],network_shape=None,input_feature_size=None,time_constant=None,minNumPerBmu=2,
           no_of_neighbours=10,init_radius=None,init_learning_rate=0.01,N=100,diff_order=1,is_train=True
@@ -220,7 +224,6 @@ def train(json_data,mode=mode_options[2],network_shape=None,input_feature_size=N
             error_codes.error_codes['unknown']['message']=e
             return json.dumps(error_codes.error_codes['unknown'])
 
-
 def evaluate(json_data,model_path,mode=mode_options[2],to_plot=True,anom_thres=3):
 
     
@@ -334,7 +337,6 @@ def evaluate(json_data,model_path,mode=mode_options[2],to_plot=True,anom_thres=3
             traceback.print_exc()
             error_codes.error_codes['unknown']['message']=e
             return error_codes.error_codes['unknown']
-
 
 reader_kwargs= lambda:{
             'assetno':['1'],

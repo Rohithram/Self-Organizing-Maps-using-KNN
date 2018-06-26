@@ -1,7 +1,7 @@
 
 
-import error_codes
-import reader
+from anomaly_detectors.utils import error_codes
+from anomaly_detectors.reader_writer import reader
 
 
 

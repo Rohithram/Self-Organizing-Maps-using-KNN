@@ -29,11 +29,6 @@ from scipy.signal import detrend
 from scipy.stats import gaussian_kde
 from mpl_toolkits.mplot3d import Axes3D
 
-#Importing reader and checker python files as modules
-import reader as reader
-import checker as checker
-import writer_configs as write_args
-import psycopg2
 
 import warnings
 warnings.filterwarnings('ignore')
@@ -41,6 +36,7 @@ warnings.filterwarnings('ignore')
 rcParams['figure.figsize'] = 12, 9
 rcParams[ 'axes.grid']=True
 plt.ion()   # interactive mode
+
 class Som_net(nn.Module):
     
     def __init__(self,som_shape,input_feature_size,time_constant,n_iterations,

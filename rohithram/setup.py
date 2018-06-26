@@ -8,4 +8,8 @@ setup(name='anomaly_detectors',
       url='',
       packages = find_packages(),
       requires=['scipy', 'numpy','pandas','bayesian_changepoint_detection']
+<<<<<<< HEAD
      )
+=======
+     )
+>>>>>>> 3d6f2c4a07bf3bc951a40be1d820c5620bfac43b

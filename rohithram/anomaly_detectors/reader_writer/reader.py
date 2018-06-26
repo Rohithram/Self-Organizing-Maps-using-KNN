@@ -5,8 +5,8 @@ import numpy as np
 import pandas as pd
 import psycopg2
 
-import checker as chk
-import db_properties as db_props
+from anomaly_detectors.reader_writer import checker as chk
+from anomaly_detectors.reader_writer import db_properties as db_props
 
 
 def opentsdb_reader(para_list, assetno, from_timestamp, to_timestamp, down_sampling_method, down_sampling_window,

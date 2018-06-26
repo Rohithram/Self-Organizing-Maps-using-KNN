@@ -2,7 +2,7 @@
 # importing required modules 
 # error_codes is python file which has errorcodes dictionary
 import numpy as np
-import error_codes as error_codes
+from anomaly_detectors.utils import error_codes as error_codes
 
 class Type_checker():
     

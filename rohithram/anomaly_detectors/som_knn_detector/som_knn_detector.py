@@ -27,18 +27,19 @@ from scipy.stats import gaussian_kde
 from mpl_toolkits.mplot3d import Axes3D
 
 #importing error_codes
-import error_codes as error_codes
-import som_knn_module
+from anomaly_detectors.utils import error_codes as error_codes
+from anomaly_detectors.som_knn_detector import som_knn_module
 import traceback
 import warnings
-from preprocessors import *
+from anomaly_detectors.utils.preprocessors import *
+
 warnings.filterwarnings('ignore')
 
 rcParams['figure.figsize'] = 12, 9
 rcParams[ 'axes.grid']=True
 
 
-def save_model(model,metric_names,filename='som_trained_model',target_dir="Anomaly_Detection_Models/Machine_Learning_Models"):
+def save_model(model,metric_names,filename='som_trained_model',target_dir="../../Anomaly_Detection_Models/Machine_Learning_Models"):
     
     try:
         time_now = ts_to_unix(pd.to_datetime(dt.datetime.now()))
@@ -311,35 +312,46 @@ def train_loop(net,train_loader,epochs):
     print("\n Training successfully completed \n")
     return net
 
+
+def check_default_args(inp_kwargs,def_kwargs):
+    for key in inp_kwargs:
+        for def_key in def_kwargs:
+            if(inp_kwargs[def_key]==None):
+                inp_kwargs[def_key]=def_kwargs[def_key]
+    return inp_kwargs
+
 def train_som(train_data,model_input_args,training_args):
-        
-    if(model_input_args['som_shape']!=None):
-        row_dim,col_dim = network_dimensions(train_data,model_input_args['N'])
-    else:
-        row_dim,col_dim = model_input_args['som_shape']
-        
-    actual_network_size = row_dim*col_dim
+    
+    def_kwargs = {}
     
     epochs = training_args['epochs']
     batch_size = training_args['batch_size']
+    n_iterations = int(epochs*(len(train_data)/batch_size))
+
+    def_kwargs['som_shape'] = network_dimensions(train_data,model_input_args['N'])
+    row_dim,col_dim = def_kwargs['som_shape']
+
+    def_kwargs['initial_radius'] = max(row_dim,col_dim)/2
+    def_kwargs['time_constant'] = n_iterations/np.log(def_kwargs['initial_radius'])
+    
+    model_kwargs = check_default_args(model_input_args,def_kwargs)
+    model_input_args.update(model_kwargs)
+    
+        
+#     actual_network_size = row_dim*col_dim
+    
+    
     
     # initial neighbourhood radius
-    if(model_input_args['initial_radius']==None):
-        init_radius = max(row_dim,col_dim)/2
-    else:
-        init_radius = model_input_args['initial_radius']
+#     init_radius = model_input_args['initial_radius']
         
     # initial learning rate
-    init_learning_rate = model_input_args['initial_learning_rate']
-    # radius decay parameter
-    n_iterations = int(epochs*(len(train_data)/batch_size))
-    time_constant = n_iterations/np.log(init_radius)
+#     init_learning_rate = model_input_args['initial_learning_rate']
     
-    model_input_args['som_shape'] = (row_dim,col_dim)
+    # radius decay parameter
+#     time_constant = model_input_args['time_constant']
+    
     model_input_args['input_feature_size'] = train_data.shape[-1]
-    model_input_args['initial_radius'] = init_radius
-    model_input_args['initial_learning_rate'] = init_learning_rate
-    model_input_args['time_constant'] = time_constant
     model_input_args['n_iterations'] = n_iterations
     
     
