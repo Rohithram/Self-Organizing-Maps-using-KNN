@@ -6,7 +6,7 @@ import psycopg2
 import json
 
 #importing reader and checker for reading data
-from anomaly_detectors.reader_writer import reader as reader
+from anomaly_detectors.reader_writer import reader_new as reader
 from anomaly_detectors.reader_writer import checker as checker
 import datetime as dt
 # error code is python file which contains dictionary of mapped error codes and messages for different errors
@@ -259,14 +259,20 @@ class Data_reader():
 
     def read(self):
         
-        response_dict = self.json_data
+        try:
+            response_dict = json.loads(self.json_data)
+        except Exception as e:
+            error_codes.error_codes['param']['message'] = str(e)+" - json_data must be proper json object"
+            error_codes.error_codes['param']['data']['argument'] = 'json_data'
+            error_codes.error_codes['param']['data']['value'] = self.json_data
+            return error_codes.error_codes['param']
         
-        if(type(response_dict)==str):
-            error_codes.error_codes['data_missing']['message']=response_dict
-            return error_codes.error_codes['data_missing']
-        else:
-            print("Getting the dataset from the reader....\n")
-            entire_data = self.parse_dict_to_dataframe(response_dict)
+#         if(type(response_dict)==str):
+#             error_codes.error_codes['data_missing']['message']=response_dict
+#             return error_codes.error_codes['data_missing']
+#         else:
+        print("Getting the dataset from the reader....\n")
+        entire_data = self.parse_dict_to_dataframe(response_dict)
 
         '''
         To do when new reader works
@@ -279,8 +285,8 @@ class Data_reader():
             entire_data.index = entire_data['timestamp'].astype(np.int64)
             del entire_data['timestamp']
         except:
-
             pass
+        
         return entire_data
     
     def parse_dict_to_dataframe(self,response_dict):

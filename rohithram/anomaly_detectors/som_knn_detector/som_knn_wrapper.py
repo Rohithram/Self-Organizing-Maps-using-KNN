@@ -79,9 +79,9 @@ ideal_eval_kwargs_type = {
             'anom_thres':int
         }
 
-mode_options = ['DETECT','LOG','DETECT_LOG']
+mode_options = ['detect only','detect and log','log only']
 
-def train(json_data,mode=mode_options[2],network_shape=None,input_feature_size=None,time_constant=None,minNumPerBmu=2,
+def train(json_data,network_shape=None,input_feature_size=None,time_constant=None,minNumPerBmu=2,
           no_of_neighbours=10,init_radius=None,init_learning_rate=0.01,N=100,diff_order=1,is_train=True
           ,epochs=4,batch_size=4,to_plot=True,test_frac=0.5):
 
@@ -149,7 +149,7 @@ def train(json_data,mode=mode_options[2],network_shape=None,input_feature_size=N
             # res is None when no error raised, otherwise it stores the appropriate error message
             res = checker.params_checker()
             if(res!=None):
-                return res
+                return json.dumps(res)
             
             # instanstiating the reader class with reader arguments
             data_reader = Data_reader(json_data=json_data)
@@ -160,13 +160,16 @@ def train(json_data,mode=mode_options[2],network_shape=None,input_feature_size=N
             writer_data = []
             anomaly_detectors = []
             
-            if((len(entire_data)!=0 and entire_data!=None and type(entire_data)!=dict)):
-
+            if((len(entire_data)!=0 and entire_data is not None and type(entire_data)!=dict)):
+            
                 '''
                 looping over the data per assets and inside that looping over metrics per asset
                 * Instantiates anomaly detector class with algo args and metric index to detect on
                 * Stores the anomaly indexes and anomaly detector object to bulk write to db at once
                 '''
+                
+#                 model_paths = []
+                out_json = {'header':'','models':[]}
 
                 for i,data_per_asset in enumerate(entire_data):
                     assetno = pd.unique(data_per_asset['assetno'])[0]
@@ -182,49 +185,53 @@ def train(json_data,mode=mode_options[2],network_shape=None,input_feature_size=N
                                                                  training_args=training_args,metric_names=cols,
                                                                 eval_args=None)
                     
-                    table_name = write_args.table_name
-                    window_size = 10
-                    anom_indexes = anomaly_detector.detect_anomalies()
-                    anomaly_detectors.append(anomaly_detector)
-                    sql_query_args = write_args.writer_kwargs
-                        
+                    model_path = (anomaly_detector.detect_anomalies())
+                    
+                    model = {anomaly_detector.assetno:model_path[0]}
+#                     table_name = write_args.table_name
+#                     window_size = 10
+#                     anomaly_detectors.append(anomaly_detector)
+#                     sql_query_args = write_args.writer_kwargs
+                    
 
+                    out_json['models'].append(model)
+        
+                out_json['header'] = error_codes.error_codes['success']
                 
-                out_json = {}
-                
-                if(mode==mode_options[0] or mode==mode_options[2]):
-                    ack_json = make_ackg_json.make_ack_json(anomaly_detectors)
-                    out_json['ack_json'] = ack_json
-                if(mode==mode_options[1] or mode==mode_options[2]):
-                    '''
-                    Instantiates writer class to write into local database with arguments given below
-                    Used for Bulk writing
-                    '''
-                    writer = Postgres_Writer(anomaly_detectors,db_credentials=db_props.db_connection,
-                                             sql_query_args=sql_query_args,
-                                            table_name=table_name,window_size=window_size)
+#                 if(mode==mode_options[0] or mode==mode_options[1]):
+#                     ack_json = make_ackg_json.make_ack_json(anomaly_detectors)
+#                     out_json['detect_status'] = ack_json
+#                 if(mode==mode_options[1] or mode==mode_options[2]):
+#                     '''
+#                     Instantiates writer class to write into local database with arguments given below
+#                     Used for Bulk writing
+#                     '''
+#                     writer = Postgres_Writer(anomaly_detectors,db_credentials=db_props.db_connection,
+#                                              sql_query_args=sql_query_args,
+#                                             table_name=table_name,window_size=window_size)
 
-                    #called for mapping args before writing into db
-                    res = writer.map_outputs_and_write()
-                    out_json['log_json']=res
+#                     #called for mapping args before writing into db
+#                     res = writer.map_outputs_and_write()
+#                     out_json['log_status']=res
                
                 return json.dumps(out_json)
-                
-                
+            elif(type(entire_data)==dict):
+               return json.dumps(entire_data)
             else:
                 '''
                 Data empty error
                 '''
+                
                 return json.dumps(error_codes.error_codes['data_missing'])
         except Exception as e:
             '''
             unknown exceptions are caught here and traceback used to know the source of the error
             '''
             traceback.print_exc()
-            error_codes.error_codes['unknown']['message']=e
+            error_codes.error_codes['unknown']['message']=str(e)
             return json.dumps(error_codes.error_codes['unknown'])
 
-def evaluate(json_data,model_path,mode=mode_options[2],to_plot=True,anom_thres=3):
+def evaluate(json_data,model_path,mode=mode_options[0],to_plot=True,anom_thres=3):
 
     
         '''
@@ -267,7 +274,7 @@ def evaluate(json_data,model_path,mode=mode_options[2],to_plot=True,anom_thres=3
             # res is None when no error raised, otherwise it stores the appropriate error message
             res = checker.params_checker()
             if(res!=None):
-                return res
+                return json.dumps(res)
             
             # instanstiating the reader class with reader arguments
             data_reader = Data_reader(json_data=json_data)
@@ -302,9 +309,9 @@ def evaluate(json_data,model_path,mode=mode_options[2],to_plot=True,anom_thres=3
                     
                 out_json = {}
                 
-                if(mode==mode_options[0] or mode==mode_options[2]):
+                if(mode==mode_options[0] or mode==mode_options[1]):
                     ack_json = make_ackg_json.make_ack_json(anomaly_detectors)
-                    out_json['ack_json'] = ack_json
+                    out_json['detect_status'] = ack_json
                 if(mode==mode_options[1] or mode==mode_options[2]):
                     
                     '''
@@ -320,7 +327,7 @@ def evaluate(json_data,model_path,mode=mode_options[2],to_plot=True,anom_thres=3
 
                     #called for mapping args before writing into db
                     res = writer.map_outputs_and_write()
-                    out_json['log_json'] = res
+                    out_json['log_status'] = res
                     
                 return json.dumps(out_json)
                 
@@ -329,17 +336,17 @@ def evaluate(json_data,model_path,mode=mode_options[2],to_plot=True,anom_thres=3
                 '''
                 Data empty error
                 '''
-                return error_codes.error_codes['data_missing']
+                return json.dumps(error_codes.error_codes['data_missing'])
         except Exception as e:
             '''
             unknown exceptions are caught here and traceback used to know the source of the error
             '''
             traceback.print_exc()
-            error_codes.error_codes['unknown']['message']=e
-            return error_codes.error_codes['unknown']
+            error_codes.error_codes['unknown']['message']=str(e)
+            return json.dumps(error_codes.error_codes['unknown'])
 
 reader_kwargs= lambda:{
-            'assetno':['1'],
+            'assetno':['TSFAD_A1'],
             'from_timestamp':'',
             'to_timestamp':'',
             'con':'',

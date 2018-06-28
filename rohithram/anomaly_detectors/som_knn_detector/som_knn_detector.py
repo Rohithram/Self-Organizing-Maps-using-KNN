@@ -128,10 +128,10 @@ class Som_Detector():
                 #meaning some unknown error happened while saving the model
                 return model_path
             
-            #Validation on entire data after training on the train data
-            anom_indexes = test(net,entire_data,to_plot=self.training_args['to_plot'])
-            self.anom_indexes = anom_indexes
-
+#             #Validation on entire data after training on the train data
+#             anom_indexes = test(net,entire_data,to_plot=self.training_args['to_plot'])
+#             self.anom_indexes = anom_indexes
+            return model_path
         else:
             model_path = self.eval_args['model_path']
             anom_thres = self.eval_args['anom_thres']
@@ -140,10 +140,7 @@ class Som_Detector():
             self.anom_indexes = anom_indexes
 
             print("\n No of Anomalies detected = %g"%(len(anom_indexes)))
-
-          
-
-        return anom_indexes
+            return anom_indexes
 
 
 class TimeSeries_Dataset(Dataset):

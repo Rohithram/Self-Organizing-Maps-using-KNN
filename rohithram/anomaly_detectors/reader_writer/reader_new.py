@@ -6,8 +6,8 @@ import numpy as np
 import pandas as pd
 import psycopg2
 
-import checker as chk
-import db_properties as db_props
+from anomaly_detectors.reader_writer import checker as chk
+from anomaly_detectors.reader_writer import db_properties as db_props
 
 
 def opentsdb_reader(para_list, assetno, from_timestamp, to_timestamp, down_sampling_method, down_sampling_window,
@@ -120,6 +120,7 @@ def csv_reader(con):
     import sys
     try:
         df = pd.read_csv(con, ",")
+        #print(df.head())
     except:
         return (str(sys.exc_info()))
     if (df.empty):
@@ -137,7 +138,7 @@ def filter_csv_dataframe(df, para_list, assetno, from_timestamp, to_timestamp):
         return ('Invalid parameter_name!')
     else:
         try:
-            df = df[df['assetno'].isin(assetno)].reset_index(drop=True)
+#             df = df[df['assetno'].isin(assetno)].reset_index(drop=True)
             temp = []
             temp.append('assetno')
             temp.append('timestamp')
@@ -259,6 +260,7 @@ def reader_api(assetno, from_timestamp, to_timestamp, down_sampling_method, down
             df = csv_reader(con)
             if (type(df) != str):
                 df = filter_csv_dataframe(df, para_list, assetno, from_timestamp, to_timestamp)
+#                 print(df)
                 if (type(df) != str):
                     if ((msg['Downsampling Method'] != '') & (msg['Downsampling Window'] != '')):
                         df = dataframe_downsampling(df, msg['Downsampling Method'], msg['Downsampling Window'])
@@ -288,8 +290,8 @@ def reader_api(assetno, from_timestamp, to_timestamp, down_sampling_method, down
             if ((type(df) != str)):
                 if (df.empty):
                     return ('Empty DataFrame!')
-               # df['timestamp'] = df.ix[:, 'timestamp'].apply(long)
-            
+                df['timestamp'] = df.ix[:, 'timestamp'].apply(int)
+
             data_dict = json_output_format(df, para_list, assetno)
             return json.dumps(data_dict)
         return df

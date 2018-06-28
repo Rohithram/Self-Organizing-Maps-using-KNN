@@ -1,7 +1,9 @@
 
 
 from anomaly_detectors.utils import error_codes
-from anomaly_detectors.reader_writer import reader
+from anomaly_detectors.reader_writer import reader_new as reader
+import traceback
+import json
 
 
 
@@ -17,17 +19,18 @@ def read(reader_kwargs):
         '''
         To do when new reader works with csv file
         '''
-#         try:
-#             response_json=reader.reader_api(**self.reader_kwargs)
+        response_json = ''
+        try:
+            response_json=reader.reader_api(**reader_kwargs)
+#             print("\nResponse from reader: \n{}\n".format(response_json))
 #             response_dict = json.loads(response_json)
-#         except Exception as e:
-#             error_codes.error_codes['data_missing']['message'] = response_json
-#             return error_codes.error_codes['data_missing']
+            return response_json
+        except Exception as e:
+            traceback.print_exc()
+            return str(response_json)
 
 
-        '''
-        To read from old reader file
-        '''
-        response_dict=reader.reader_api(**reader_kwargs)
-
-        return response_dict
+#         '''
+#         To read from old reader file
+#         '''
+#         response_dict=reader.reader_api(**reader_kwargs)

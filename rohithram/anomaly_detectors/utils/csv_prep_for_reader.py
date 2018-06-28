@@ -25,7 +25,7 @@ reader_kwargs= lambda:{
 }
 
 
-def preparecsvtoread(filepath,filename,target_dir,assetno='1',n_rows=None,has_time=True):
+def preparecsvtoread(filepath,filename,target_dir,assetno='TSFAD_A1',n_rows=None,has_time=True):
     if(n_rows is not None):
         df  = pd.read_csv(filepath,nrows=n_rows)
     else:
@@ -37,22 +37,23 @@ def preparecsvtoread(filepath,filename,target_dir,assetno='1',n_rows=None,has_ti
         index = pd.DatetimeIndex(start=start, end=end, freq="10min")[:n_rows]
         df.insert(0,'timestamp', index) 
         df = df.dropna(axis=1, how='all')
-        print(df.head())
+#         print(df.head())
     else:
         df = df.rename(columns={df.columns[0]:'timestamp'})
     df['timestamp'] = (pd.to_datetime(df['timestamp'],infer_datetime_format=True).astype(np.int64)/(1e6)).astype(np.int64)
+#     print(df.head())
     metric_names = df.columns[1:-1]
     target_filepath = os.path.join(target_dir,filename)
     df.to_csv(target_filepath,index=False)
     return target_filepath,list(metric_names)
 
-def get_csv_kwargs(infile='./dataset/sample_csv_files/alcohol-demand-log-spirits-consu.csv',
+def get_csv_kwargs(infile='../../dataset/sample_csv_files/alcohol-demand-log-spirits-consu.csv',
                   filename='alcohol-demand-log-spirits-consu.csv',
-                  target_dir='dataset/reader_csv_files/',assetno = ['1'],n_rows=None,has_time=True):
+                  target_dir='../../dataset/reader_csv_files/',assetno = 'TSFAD_A1',n_rows=None,has_time=True):
     
     kwargs1 = reader_kwargs()
     
-    con,param = preparecsvtoread(filepath=infile,filename=filename,target_dir=target_dir,assetno=assetno[0],
+    con,param = preparecsvtoread(filepath=infile,filename=filename,target_dir=target_dir,assetno=assetno,
                                  n_rows=n_rows,has_time=has_time)
     kwargs1['con'] = con
     kwargs1['source_type'] = 'csv'
