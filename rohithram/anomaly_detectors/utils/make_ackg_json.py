@@ -29,74 +29,92 @@ def make_ack_json(anomaly_detectors):
     Datapoint_keys = ['from_timestamp','to_timestamp','anomaly_timestamp','anomaly_code']            
 
     ack_json1 = ack_json()
+    zero_anomalies = 0
+    total_anom_detectors = 0
     
     if(anomaly_detectors[0].algo_type=='univariate'):
         
         no_assets = pd.unique([anomaly_detector.assetno for anomaly_detector in anomaly_detectors]).size 
         anomaly_detectors_per_asset = np.split(np.array(anomaly_detectors),no_assets)
         
+        
         for i in range(no_assets):
             
             anom_per_asset1 = anom_per_asset()
+            
+            
             for anomaly_detector in anomaly_detectors_per_asset[i]:
-                
+
                 data = anomaly_detector.data
                 anom_indexes = anomaly_detector.anom_indexes
 
                 if(len(data[anomaly_detector.metric_name])!=0):
-                    ack_json1['header'] = error_codes.error_codes['success']
-                    anom_per_asset1['asset'] = anomaly_detector.assetno
-#                     anom_per_asset1['anom_counts'][anomaly_detector.metric_name] = len(anom_indexes)
+                    total_anom_detectors+=1
                     if(len(anom_indexes)!=0):
+                        anom_per_asset1['asset'] = anomaly_detector.assetno
                         anom_per_metric1 = anom_per_metric()
                         anom_per_metric1['name'] = anomaly_detector.metric_name
-                        anom_timestamps = data.index[anom_indexes]
-                    
-                        anom_per_metric1['datapoints'] = [dict(zip(Datapoint_keys,
-                                                               [anom_timestamp,anom_timestamp,[anom_timestamp],
-                                                                anomaly_detector.algo_code]))
-                                                      for anom_timestamp in anom_timestamps]               
+                        anom_timestamps = (data.index[anom_indexes].values)
+                        anom_timestamps = [np.asscalar(t) for t in anom_timestamps]
+                                                
+                        anom_per_metric1['datapoints'] = [dict(list(zip(Datapoint_keys,[t,t,[t],
+                                                                                        anomaly_detector.algo_code])))
+                                                      for t in anom_timestamps] 
+
                         anom_per_asset1['anomalies'].append(anom_per_metric1)
-                
+                        ack_json1['header'] = error_codes.error_codes['success']
+                    else:
+                        zero_anomalies+=1
                 else:
                     ack_json1['header'] = bad_response
+                    ack_json1['body'] = []
                     return ack_json1
                     
+                
+                    
             ack_json1['body'].append(anom_per_asset1)
-
             
+                    
     else:
         
         for anomaly_detector in anomaly_detectors:
 
             data = anomaly_detector.data
             anom_indexes = anomaly_detector.anom_indexes
-
+            
             if(len(data)!=0):
-                ack_json1['header'] = error_codes.error_codes['success']
-                anom_per_asset1 = anom_per_asset()
-                anom_per_asset1['asset'] = anomaly_detector.assetno
+                total_anom_detectors+=1
+                if(len(anom_indexes)==0):
+                    zero_anomalies +=1
+                else:
+                    ack_json1['header'] = error_codes.error_codes['success']
+                    anom_per_asset1 = anom_per_asset()
+                    anom_per_asset1['asset'] = anomaly_detector.assetno
 
-                metric_names = anomaly_detector.metric_name
+                    metric_names = anomaly_detector.metric_name
 
-                for metric_name in metric_names:
-                    
-#                     anom_per_asset1['anom_counts'][metric_name] = len(anom_indexes)
+                    for metric_name in metric_names:
 
-                    anom_per_metric1 = anom_per_metric()
-                    anom_per_metric1['name'] = metric_name
-                    anom_timestamps = data.index[anom_indexes]
-                    
-                    anom_per_metric1['datapoints'] = [dict(zip(Datapoint_keys,
-                                                               [anom_timestamp,anom_timestamp,[anom_timestamp],
-                                                                anomaly_detector.algo_code]))
-                                                      for anom_timestamp in anom_timestamps]                    
+                        anom_per_metric1 = anom_per_metric()
+                        anom_per_metric1['name'] = metric_name
+                        anom_timestamps = (data.index[anom_indexes].values)
+                        anom_timestamps = [np.asscalar(t) for t in anom_timestamps]
+                                                
+                        anom_per_metric1['datapoints'] = [dict(list(zip(Datapoint_keys,[t,t,[t],
+                                                                                        anomaly_detector.algo_code])))
+                                                      for t in anom_timestamps] 
+                        anom_per_asset1['anomalies'].append(anom_per_metric1)
 
-                    anom_per_asset1['anomalies'].append(anom_per_metric1)
-
-                ack_json1['body'].append(anom_per_asset1)
+                    ack_json1['body'].append(anom_per_asset1)
             else:
                 ack_json1['header'] = bad_response
+                ack_json1['body'] = []
+                return ack_json1
+                
+                
+    if(zero_anomalies==total_anom_detectors):
+        ack_json1['header'] = no_anom_response
+        ack_json1['body'] = []            
             
         
     return ack_json1

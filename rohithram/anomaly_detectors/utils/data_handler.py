@@ -261,6 +261,8 @@ class Data_reader():
         
         try:
             response_dict = json.loads(self.json_data)
+#             print("Response dictionary : {}".format(response_dict))
+            
         except Exception as e:
             error_codes.error_codes['param']['message'] = str(e)+" - json_data must be proper json object"
             error_codes.error_codes['param']['data']['argument'] = 'json_data'
@@ -281,11 +283,11 @@ class Data_reader():
 #         entire_data = self.parse_dict_to_dataframe(response_dict)
 #         print(response_dict)
       
-        try:
-            entire_data.index = entire_data['timestamp'].astype(np.int64)
-            del entire_data['timestamp']
-        except:
-            pass
+#         try:
+#             entire_data.index = entire_data['timestamp'].astype(np.int64)
+#             del entire_data['timestamp']
+#         except:
+#             pass
         
         return entire_data
     
@@ -310,7 +312,10 @@ class Data_reader():
                 data['assetno']=assetno
                 dataframe_per_asset.append(data)
             dataframe = pd.concat(dataframe_per_asset,axis=1)
-            dataframe = dataframe.T.drop_duplicates().T
+            try:
+                dataframe = dataframe.T.drop_duplicates().T
+            except:
+                pass
             cols = list(dataframe.columns)
             cols.insert(0, cols.pop(cols.index('assetno')))
             dataframe = dataframe[cols]

@@ -7,7 +7,7 @@ import os
 
 
 reader_kwargs= lambda:{
-            'assetno':['1'],
+            'assetno':['TSFAD_A1'],
             'from_timestamp':'',
             'to_timestamp':'',
             'con':'',
@@ -29,15 +29,19 @@ def preparecsvtoread(filepath,filename,target_dir,assetno='TSFAD_A1',n_rows=None
     if(n_rows is not None):
         df  = pd.read_csv(filepath,nrows=n_rows)
     else:
+        
         df = pd.read_csv(filepath)
+        n_rows = df.shape[0]
+        
     df['assetno'] = assetno
+#     print(df.head())
     if(has_time!=True):
         start = pd.Timestamp("19700807 08:30-0400")
         end = pd.Timestamp("20170807 17:30-0400")
         index = pd.DatetimeIndex(start=start, end=end, freq="10min")[:n_rows]
         df.insert(0,'timestamp', index) 
         df = df.dropna(axis=1, how='all')
-#         print(df.head())
+        print(df.head())
     else:
         df = df.rename(columns={df.columns[0]:'timestamp'})
     df['timestamp'] = (pd.to_datetime(df['timestamp'],infer_datetime_format=True).astype(np.int64)/(1e6)).astype(np.int64)
