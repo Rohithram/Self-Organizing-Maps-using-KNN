@@ -33,7 +33,6 @@ class Postgres_Writer():
         window_size : (int) no of points either side of around anomaly to write into db
         '''
         
-#         super(Postgres_Writer,self).__init__(anomaly_detector)
         self.anomaly_detectors = anomaly_detectors
         self.db_credentials = db_credentials
         self.sql_query_args = sql_query_args
@@ -261,6 +260,8 @@ class Data_reader():
         
         try:
             response_dict = json.loads(self.json_data)
+#             print("Response dictionary : {}".format(response_dict))
+            
         except Exception as e:
             error_codes.error_codes['param']['message'] = str(e)+" - json_data must be proper json object"
             error_codes.error_codes['param']['data']['argument'] = 'json_data'
@@ -281,11 +282,11 @@ class Data_reader():
 #         entire_data = self.parse_dict_to_dataframe(response_dict)
 #         print(response_dict)
       
-        try:
-            entire_data.index = entire_data['timestamp'].astype(np.int64)
-            del entire_data['timestamp']
-        except:
-            pass
+#         try:
+#             entire_data.index = entire_data['timestamp'].astype(np.int64)
+#             del entire_data['timestamp']
+#         except:
+#             pass
         
         return entire_data
     
@@ -305,16 +306,22 @@ class Data_reader():
             for data_per_metric in data_per_asset['readings']:
                 data = pd.DataFrame(data_per_metric['datapoints'],columns=['timestamp',data_per_metric['name']])
                 # making index of dataframe as timestamp and deleting that column
+#                 data.dropna(inplace=True)
+#                 data.reset_index(inplace=True,drop=True)
                 data.index = data['timestamp']
                 del data['timestamp']
                 data['assetno']=assetno
+#                 print(data.head())
                 dataframe_per_asset.append(data)
             dataframe = pd.concat(dataframe_per_asset,axis=1)
-            dataframe = dataframe.T.drop_duplicates().T
+            try:
+                dataframe = dataframe.T.drop_duplicates().T
+            except:
+                pass
             cols = list(dataframe.columns)
             cols.insert(0, cols.pop(cols.index('assetno')))
             dataframe = dataframe[cols]
 #             print('Asset no : {} \n {} \n'.format(assetno,dataframe.head()))
             entire_data_set.append(dataframe)        
-
+#             print(entire_data_set)
         return entire_data_set

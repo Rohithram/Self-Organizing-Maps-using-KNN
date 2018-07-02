@@ -2,19 +2,6 @@
 import numpy as np
 import pandas as pd
 import json
-from pandas.io.json import json_normalize
-import pickle
-
-#torch libraries
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-import torchvision
-from torch.utils.data import Dataset, DataLoader
-from torchvision import transforms, utils
-
-#importing sklearn libraries
-import scipy as sp
 
 import matplotlib.pyplot as plt
 from matplotlib.pylab import rcParams
@@ -23,28 +10,20 @@ import time
 import os
 
 
-# Importing reader and checker python files as modules
+# Importing dependency files
 from anomaly_detectors.reader_writer import db_properties as db_props
 from anomaly_detectors.reader_writer import writer_configs as write_args
-
-import psycopg2
-
 from anomaly_detectors.utils.preprocessors import *
 from anomaly_detectors.utils.data_handler import *
-# from anomaly_detectors.bayesian_detectorbayesian_changept_detector import *
-
 from anomaly_detectors.utils import error_codes as error_codes
 from anomaly_detectors.utils import type_checker as type_checker
 from anomaly_detectors.utils import csv_prep_for_reader as csv_helper
 from anomaly_detectors.utils import reader_helper
 from anomaly_detectors.utils import make_ackg_json
-
-
 from anomaly_detectors.som_knn_detector import som_knn_detector as som_detector
 from anomaly_detectors.som_knn_detector import som_knn_module as som_model
 
 
-import json
 import traceback
 
 
@@ -307,11 +286,10 @@ def evaluate(json_data,model_path,mode=mode_options[0],to_plot=True,anom_thres=3
                     anom_indexes = anomaly_detector.detect_anomalies()
                     anomaly_detectors.append(anomaly_detector)
                     
-                out_json = {}
+                ack_json = {}
                 
                 if(mode==mode_options[0] or mode==mode_options[1]):
                     ack_json = make_ackg_json.make_ack_json(anomaly_detectors)
-                    out_json['detect_status'] = ack_json
                 if(mode==mode_options[1] or mode==mode_options[2]):
                     
                     '''
@@ -327,9 +305,10 @@ def evaluate(json_data,model_path,mode=mode_options[0],to_plot=True,anom_thres=3
 
                     #called for mapping args before writing into db
                     res = writer.map_outputs_and_write()
-                    out_json['log_status'] = res
+                    if(res!=error_codes.error_codes['success']):
+                        return json.dumps(res)
                     
-                return json.dumps(out_json)
+                return json.dumps(ack_json)
                 
                 
             else:

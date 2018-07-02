@@ -1,0 +1,47 @@
+
+
+reader_kwargs= lambda:{
+            'assetno':['TSFAD_A1'],
+            'from_timestamp':'',
+            'to_timestamp':'',
+            'con':'',
+            'para_list':'',
+            'source_type':'',
+            'table_name':'',
+            'qry_str':'',
+            'impute_fill_method':'forward',
+            'down_sampling_method':None,
+            'down_sampling_window':None,
+            'freq':None,
+            'resample_fill_method':None,
+            'to_resample':None,
+            'to_impute':False,
+}
+
+model_input_args = lambda :{
+    'network_shape':(8,8),
+    'input_feature_size':None,
+    'time_constant':None,
+    'minNumPerBmu':2,
+    'no_of_neighbours':3,
+    'init_radius':0.4,
+    'init_learning_rate':0.01,
+    'N':100,    
+    'diff_order':1
+}
+
+training_args = lambda:{
+            'is_train':True,
+            'epochs':5,
+            'batch_size':4,
+            'to_plot':True,
+            'test_frac':0.7
+        }
+
+
+        
+eval_args = lambda: {
+    'model_path':'',
+    'to_plot':True,
+    'anom_thres':3
+}
