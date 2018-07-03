@@ -2,46 +2,23 @@
 import numpy as np
 import pandas as pd
 import json
-from pandas.io.json import json_normalize
 
 #torch libraries
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
-from skimage import io, transform
 from sklearn.neighbors import NearestNeighbors
-
-import torchvision
-from torch.utils.data import Dataset, DataLoader
-from torchvision import transforms, utils
-
-import scipy as sp
-
-import matplotlib.pyplot as plt
-from sklearn import preprocessing 
-from matplotlib.pylab import rcParams
-import datetime as dt
-import argparse
-import time
-from seasonal import fit_seasons,adjust_seasons
-from scipy.signal import detrend
-
-from scipy.stats import gaussian_kde
-from mpl_toolkits.mplot3d import Axes3D
-
 
 import warnings
 warnings.filterwarnings('ignore')
 
-rcParams['figure.figsize'] = 12, 9
-rcParams[ 'axes.grid']=True
-plt.ion()   # interactive mode
-
-class Som_net(nn.Module):
+class Som_model():
+    '''
+    It's a class for SOM_KNN model
+    Arguments : 
+    Takes all model related arguments whose descriptions are already given in the wrapper function
+    '''
     
     def __init__(self,som_shape,input_feature_size,time_constant,n_iterations,
                  minNumPerBmu=1,no_of_neighbors=3,initial_radius=1,initial_learning_rate=0.4,diff_order=1):
-        super(Som_net, self).__init__()
         
         self.shape = som_shape
         self.weight_dim = self.shape.__len__()
@@ -56,9 +33,9 @@ class Som_net(nn.Module):
         self.minNumPerBmu = minNumPerBmu
         self.no_of_neighbors = no_of_neighbors
         self.diff_order = diff_order
-#         self.allowed_nodes = torch.from_numpy(np.array())
         
     def findBMU(self,x_batch):
+        
         """
          Find the best matching unit for a specific batch of samples
         :param x_batch: The data points for which the best matching unit should be found.
@@ -68,20 +45,14 @@ class Som_net(nn.Module):
         
         batch_size = len(x_batch)
         bmu_indexes = np.zeros((batch_size,2),dtype=int)
-#         print(bmu_indexes[0].shape)
         for i in range(batch_size):
-#             print(np.square(self.weights.numpy()-x_batch[i].numpy()).sum(axis=-1))
             bmu_dists = np.square(self.weights.numpy()-x_batch[i].numpy()).sum(axis=-1)
             arg_min_ind = np.argmin(bmu_dists)
-#             print(arg_min_ind)
             bmu_indexes[i] = np.unravel_index(arg_min_ind,bmu_dists.shape)
-#             print(bmu_indexes[i])
-#             print(self.bmu_counts[])
+
             
             self.bmu_counts[np.unravel_index(arg_min_ind,bmu_dists.shape)] +=1
 
-                           
-#         print("Bmu indexes shape {}".format(bmu_indexes.shape))
         return bmu_indexes
     
     
@@ -95,20 +66,25 @@ class Som_net(nn.Module):
         :return: a reference to the object
         """
         
+        #finding coordinates of bMU's for training batch of inputs
         bmu_indexes = self.findBMU(train_batch)
         
+        #calculating current iteration number within samples of each batch
         curr_iter = np.array([curr_batch_iter+i for i in range(len(train_batch))])
+        
         # Update the parameters to let them decay to 0
                
         r_batch = self.decay_radius((curr_iter))
         l_batch = self.decay_learning_rate(curr_iter)
         
-    
+        #update weights
         self.update_weights(train_batch, bmu_indexes, r_batch, l_batch)
+        #removing the contribution from noisy data by eliminating neurons with lesser BMU hits
         self.allowed_nodes = self.weights[self.bmu_counts >= self.minNumPerBmu]
 
         return self
 
+    
     def evaluate(self,evaluationData):
         """
         This function maps the evaluation data to the previously fitted network. It calculates the anomaly measure
@@ -131,6 +107,10 @@ class Som_net(nn.Module):
     
     
     def neuron_locations(self,m,n):
+        '''
+        Function to create locations of neurons in a 2D matrix, for example M[i,j] = [i,j]
+        Vectorised way to create this matrix
+        '''
         r0 = np.arange(m) # Or r0,r1 = np.ogrid[:m,:n], out[:,:,0] = r0
         r1 = np.arange(n)
         out = np.empty((m,n,2),dtype=int)
@@ -139,6 +119,7 @@ class Som_net(nn.Module):
         return out
 
     def decay_radius(self,i):
+
         return self.initial_radius * np.exp(-(1*i)/self.time_constant)
 
     
@@ -146,7 +127,11 @@ class Som_net(nn.Module):
         return self.initial_learning_rate * np.exp(-(1*i)/self.n_iterations)
 
     
-    def calculate_influence(self,distance, radius,index):
+    def calculate_influence(self,distance, radius):
+        '''
+        Calculate the influence of the neurons surrounding the BMU, so that it updates the weights
+        accordingly. Basically farthest neuron from the bMU will have least influence
+        '''
         return np.exp(-distance / (2* (radius**2)))
 
     
@@ -176,7 +161,7 @@ class Som_net(nn.Module):
 
         bool_index = np.array([(w_dists[i]<=r2) for i,r2 in enumerate(radius**2)])
         
-        influence = np.array([self.calculate_influence(w_dists[i][bool_index[i]],radius[i],bool_index[i]) 
+        influence = np.array([self.calculate_influence(w_dists[i][bool_index[i]],radius[i]) 
                               for i in range((batch_size))])
         
         influence_neurons = np.zeros(w_dists.shape)
