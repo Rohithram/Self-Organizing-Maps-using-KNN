@@ -73,37 +73,39 @@ def train(json_data,network_shape=None,input_feature_size=None,time_constant=Non
         *anomaly detector - Class som_knn_detector defined in som_knn_detector.py, which takes in
                             data and algorithm parameters as argument and trains and saves the model and returns
                             the model file path where it saved
-        * make_acknowledgement_json - Its function to Make acknowlegement json imported from make_ackg_json.py
+        *make_acknowledgement_json - Its function to Make acknowlegement json imported from make_ackg_json.py
         
         *writer           - Class Postgres_Writer defined in data_handler.py which takes in anomaly detector object and
-                            and sql_queries , db_properties and table name as args and gives out response code.
+                            and sql_queries, db_properties and table name as args and gives out response code.
         
         Arguments :
         Required Parameter:
             json_data: The Json object in the format of the input json given from reader api
             
         Optional Parameter 
-                mode  : mode has three options 'detect only' ,'detect and log' , 'log only' 
-                    Default : 'detect only'
+                mode : mode has 3 options -> 'detect only','detect and log' , 'log only'
+                    Default: 'detect only'
                 network_shape : (Type : Tuple (x,y) ) where x is no of rows of the grid of neuron layer and y is the no of columns of grid. So Total no of neurons in a single layer is (x*y)
                     Default: (8,8)
                 input_feature_size: Positive Integer representing the no of features in the input data for which anomaly to be detected 
                     Default: Will be no of metric's given as the input , For ex: For two metrics given the feature size will be taken as 2 since this is a multivariate algorithm
                     Customised input : Give no of features wanted to be extracted per metric (yet to do)
                     Note: (Do not give unrelated metrics together in input data , since all metrics are analyzed together i.e Multivariate)
-                time_constant: positive float it is exponential decay factor to decrease the radius of the neighborhood of BMU as no of iterations increases 
-                    Default : n_iterations/log(init_radius)
+
+                time_constant: positive float, Exponential decay factor to decrease the neighborhood radius around BMU
+                    Default: n_iterations/(log(init_radius)) , It's calculated in the program
+                
                 minNumPerBmu: positive integer , It is a minimum no of BMU hits for a neuron. Used to minimise the effect of noise in the data
                     Default : 3
                 no_of_neighbors: positive integer , It is no of neighbors for KNN algorithm.
                     Default: 3
-                initial_radius : positive float , It is initial radius to find group of neurons around BMU 
-                    Default : 0.4
+                initial_radius : positive float, initial radius to find the group of neurons around each BMU
+                    Default: 0.4
                 initial_learning_rate : positive float , It is learning rate for the algo
-                    Default  : 0.01
-                diff_order : positive integer, It is order of differencing to be done on the raw data 
-                    Default : 0 
-                Note : use 1 or more for mean shift dataset
+                    Default  : 0.01
+                diff_order : positive integer, It is order of differencing to be done on the raw data 
+                    Default : 0 
+                    Note : use 1 or more for mean shift dataset
                 epochs: positive integer , no of epochs to train
                     Default: 4
                 batch_size : positive integer, no of samples in data to be processed simultaneously
@@ -112,9 +114,9 @@ def train(json_data,network_shape=None,input_feature_size=None,time_constant=Non
                     Default : 0.2
                 to_plot : Boolean .Give True to see the plots of change-points detected and False if there is no need for plotting
                     Default : True
-
+                
+                
         '''
-        
         
         
         #algorithm arguments
@@ -258,15 +260,16 @@ def evaluate(json_data,model_path,mode=mode_options[0],to_plot=True,anom_thres=3
         
         *writer           - Class Postgres_Writer defined in data_handler.py which takes in anomaly detector object and
                             and sql_queries , db_properties and table name as args and gives out response code.
+        
         Arguments :
         
         Required Parameter:
             json_data: The Json object in the format of the input json given from reader api to evaluate the model
             model_path : Saved model file path in (string) format
-        Optional Parameter
-            mode  : mode has three options 'detect only' ,'detect and log' , 'log only' 
-                Default : 'detect only'
-            anom_thres : (Type : Positive integer ) Anomaly threshold, used on anomaly scores estimated using K nearest neighbours on BMU's of input test sample
+        Optional Parameters: 
+            mode - mode has 3 options 'detect only','detect and log','log only'
+                Default: 'detect only'
+            anom_thres : (Type : Positive integer ) Anomaly threshold, used on anomaly scores estimated using K nearest neighbours on BMU of input test sample
                 Default: 3
             to_plot : Boolean .Give True to see the plots of change-points detected and False if there is no need for plotting
                 Default : True
