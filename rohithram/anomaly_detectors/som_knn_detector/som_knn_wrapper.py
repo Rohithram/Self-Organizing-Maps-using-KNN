@@ -2,19 +2,6 @@
 import numpy as np
 import pandas as pd
 import json
-from pandas.io.json import json_normalize
-import pickle
-
-#torch libraries
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-import torchvision
-from torch.utils.data import Dataset, DataLoader
-from torchvision import transforms, utils
-
-#importing sklearn libraries
-import scipy as sp
 
 import matplotlib.pyplot as plt
 from matplotlib.pylab import rcParams
@@ -23,28 +10,20 @@ import time
 import os
 
 
-# Importing reader and checker python files as modules
+# Importing dependency files
 from anomaly_detectors.reader_writer import db_properties as db_props
 from anomaly_detectors.reader_writer import writer_configs as write_args
-
-import psycopg2
-
 from anomaly_detectors.utils.preprocessors import *
 from anomaly_detectors.utils.data_handler import *
-# from anomaly_detectors.bayesian_detectorbayesian_changept_detector import *
-
-from anomaly_detectors.utils import error_codes as error_codes
+from anomaly_detectors.utils.error_codes import error_codes
 from anomaly_detectors.utils import type_checker as type_checker
 from anomaly_detectors.utils import csv_prep_for_reader as csv_helper
 from anomaly_detectors.utils import reader_helper
 from anomaly_detectors.utils import make_ackg_json
-
-
 from anomaly_detectors.som_knn_detector import som_knn_detector as som_detector
 from anomaly_detectors.som_knn_detector import som_knn_module as som_model
 
 
-import json
 import traceback
 
 
@@ -73,11 +52,13 @@ ideal_train_kwargs_type  = {
             'test_frac':float
         }
 
+
 ideal_eval_kwargs_type = {
             'model_path':str,
             'to_plot':bool,
-            'anom_thres':int
+            'anom_thres':float
         }
+
 
 mode_options = ['detect only','detect and log','log only']
 
@@ -87,23 +68,57 @@ def train(json_data,network_shape=None,input_feature_size=None,time_constant=Non
 
         '''
         Wrapper function which should be called inorder to run the anomaly detection, it has four parts :
-        *reader           - Class Data_reader defined in data_handler.py which takes in reader args and parses json 
-                            and gives dataframes
+        *reader           - Class Data_reader defined in data_handler.py which takes in json_string  and parses json 
+                            and gives list of dataframes
         *preprocessor     - preprocessors are defined in preprocessors.py, which takes in data and gives out processed 
                             data
-        *anomaly detector - Class Bayesian_Changept_Detector defined in bayesian_changept_detector.py, which takes in
-                            data and algorithm parameters as argument and returns anomaly indexes and data.        
+        *anomaly detector - Class som_knn_detector defined in som_knn_detector.py, which takes in
+                            data and algorithm parameters as argument and trains and saves the model and returns
+                            the model file path where it saved
+        *make_acknowledgement_json - Its function to Make acknowlegement json imported from make_ackg_json.py
+        
         *writer           - Class Postgres_Writer defined in data_handler.py which takes in anomaly detector object and
-                            and sql_queries , db_properties and table name as args and gives out response code.
+                            and sql_queries, db_properties and table name as args and gives out response code.
         
         Arguments :
-        It takes reader args as of now to get the dataset and algo related arguments
-        Note:
-        To run this, import this python file as module and call this function with required args and it will detect
-        anomalies and writes to the local database.
-        This algorithm is univariate, so each metric per asset is processed individually
+        Required Parameter:
+            json_data: The Json object in the format of the input json given from reader api
+            
+        Optional Parameter 
+                mode : mode has 3 options -> 'detect only','detect and log' , 'log only'
+                    Default: 'detect only'
+                network_shape : (Type : Tuple (x,y) ) where x is no of rows of the grid of neuron layer and y is the no of columns of grid. So Total no of neurons in a single layer is (x*y)
+                    Default: (8,8)
+                input_feature_size: Positive Integer representing the no of features in the input data for which anomaly to be detected 
+                    Default: Will be no of metric's given as the input , For ex: For two metrics given the feature size will be taken as 2 since this is a multivariate algorithm
+                    Customised input : Give no of features wanted to be extracted per metric (yet to do)
+                    Note: (Do not give unrelated metrics together in input data , since all metrics are analyzed together i.e Multivariate)
+
+                time_constant: positive float, Exponential decay factor to decrease the neighborhood radius around BMU
+                    Default: n_iterations/(log(init_radius)) , It's calculated in the program
+                
+                minNumPerBmu: positive integer , It is a minimum no of BMU hits for a neuron. Used to minimise the effect of noise in the data
+                    Default : 3
+                no_of_neighbors: positive integer , It is no of neighbors for KNN algorithm.
+                    Default: 3
+                initial_radius : positive float, initial radius to find the group of neurons around each BMU
+                    Default: 0.4
+                initial_learning_rate : positive float , It is learning rate for the algo
+                    Default  : 0.01
+                diff_order : positive integer, It is order of differencing to be done on the raw data 
+                    Default : 0 
+                    Note : use 1 or more for mean shift dataset
+                epochs: positive integer , no of epochs to train
+                    Default: 4
+                batch_size : positive integer, no of samples in data to be processed simultaneously
+                    Default: 4
+                test_frac: positive float, Ratio of test : train data
+                    Default : 0.2
+                to_plot : Boolean .Give True to see the plots of change-points detected and False if there is no need for plotting
+                    Default : True
+                
+                
         '''
-        
         
         
         #algorithm arguments
@@ -135,7 +150,8 @@ def train(json_data,network_shape=None,input_feature_size=None,time_constant=Non
         #merging all algo arguments for params checking
         algo_kwargs = {**model_input_args,**training_args}
         
-                    
+        error_codes1 = error_codes()
+              
         try: 
             '''
             #reseting the error_codes to avoid overwritting
@@ -143,7 +159,6 @@ def train(json_data,network_shape=None,input_feature_size=None,time_constant=Non
             #for different kinds errors and reset function to reset them.
             '''
             
-            error_codes.reset()
             # type_checker is python file which has Type_checker class which checks given parameter types
             checker = type_checker.Type_checker(kwargs=algo_kwargs,ideal_args_type=ideal_train_kwargs_type)
             # res is None when no error raised, otherwise it stores the appropriate error message
@@ -172,31 +187,31 @@ def train(json_data,network_shape=None,input_feature_size=None,time_constant=Non
                 out_json = {'header':'','models':[]}
 
                 for i,data_per_asset in enumerate(entire_data):
-                    assetno = pd.unique(data_per_asset['assetno'])[0]
-#                     print(assetno)
-                    data_per_asset[data_per_asset.columns[1:]] = normalise_standardise(data_per_asset[data_per_asset.columns[1:]]
-                                                                 )
-                    
-                    
-                    print("Data of Asset no: {} \n {}\n".format(assetno,data_per_asset.head()))
-                    cols = list(data_per_asset.columns[1:])
-                    
-                    anomaly_detector = som_detector.Som_Detector(data = data_per_asset,                                                            assetno=assetno,model_input_args=model_input_args,
-                                                                 training_args=training_args,metric_names=cols,
-                                                                eval_args=None)
-                    
-                    model_path = (anomaly_detector.detect_anomalies())
-                    
-                    model = {anomaly_detector.assetno:model_path[0]}
-#                     table_name = write_args.table_name
-#                     window_size = 10
-#                     anomaly_detectors.append(anomaly_detector)
-#                     sql_query_args = write_args.writer_kwargs
-                    
+                    if(len(data_per_asset)!=0):
+                        assetno = pd.unique(data_per_asset['assetno'])[0]
+    #                     print(assetno)
+                        data_per_asset[data_per_asset.columns[1:]] = normalise_standardise(data_per_asset[data_per_asset.columns[1:]]
+                                                                     )
 
-                    out_json['models'].append(model)
-        
-                out_json['header'] = error_codes.error_codes['success']
+
+                        print("Data of Asset no: {} \n {}\n".format(assetno,data_per_asset.head()))
+                        cols = list(data_per_asset.columns[1:])
+
+                        anomaly_detector = som_detector.Som_Detector(data = data_per_asset,model_input_args=model_input_args,
+                                                                     training_args=training_args,
+                                                                    eval_args=None)
+
+                        model_path = (anomaly_detector.detect_anomalies())
+
+                        model = {anomaly_detector.assetno:model_path[0]}
+    #                     table_name = write_args.table_name
+    #                     window_size = 10
+    #                     anomaly_detectors.append(anomaly_detector)
+    #                     sql_query_args = write_args.writer_kwargs
+
+
+                        out_json['models'].append(model)
+                out_json['header'] = error_codes1['success']
                 
 #                 if(mode==mode_options[0] or mode==mode_options[1]):
 #                     ack_json = make_ackg_json.make_ack_json(anomaly_detectors)
@@ -221,36 +236,45 @@ def train(json_data,network_shape=None,input_feature_size=None,time_constant=Non
                 '''
                 Data empty error
                 '''
-                
-                return json.dumps(error_codes.error_codes['data_missing'])
+                return json.dumps(error_codes1['data_missing'])
         except Exception as e:
             '''
             unknown exceptions are caught here and traceback used to know the source of the error
             '''
             traceback.print_exc()
-            error_codes.error_codes['unknown']['message']=str(e)
-            return json.dumps(error_codes.error_codes['unknown'])
+            error_codes1['unknown']['message']=str(e)
+            return json.dumps(error_codes1['unknown'])
 
-def evaluate(json_data,model_path,mode=mode_options[0],to_plot=True,anom_thres=3):
+def evaluate(json_data,model_path,mode=mode_options[0],to_plot=True,anom_thres=3.0):
 
     
         '''
         Wrapper function which should be called inorder to run the anomaly detection, it has four parts :
-        *reader           - Class Data_reader defined in data_handler.py which takes in reader args and parses json 
-                            and gives dataframes
+        *reader           - Class Data_reader defined in data_handler.py which takes in json_string  and parses json 
+                            and gives list of dataframes
         *preprocessor     - preprocessors are defined in preprocessors.py, which takes in data and gives out processed 
                             data
-        *anomaly detector - Class Bayesian_Changept_Detector defined in bayesian_changept_detector.py, which takes in
-                            data and algorithm parameters as argument and returns anomaly indexes and data.        
+        *anomaly detector - Class som_knn_detector defined in som_knn_detector.py, which takes in
+                            data and algorithm parameters as argument and evaluates the data using the choosen model
+                            and returns anomaly_indexes.      
+        * make_acknowledgement_json - Its function to Make acknowlegement json imported from make_ackg_json.py
+        
         *writer           - Class Postgres_Writer defined in data_handler.py which takes in anomaly detector object and
                             and sql_queries , db_properties and table name as args and gives out response code.
         
         Arguments :
-        It takes reader args as of now to get the dataset and algo related arguments
-        Note:
-        To run this, import this python file as module and call this function with required args and it will detect
-        anomalies and writes to the local database.
-        This algorithm is univariate, so each metric per asset is processed individually
+        
+        Required Parameter:
+            json_data: The Json object in the format of the input json given from reader api to evaluate the model
+            model_path : Saved model file path in (string) format
+        Optional Parameters: 
+            mode - mode has 3 options 'detect only','detect and log','log only'
+                Default: 'detect only'
+            anom_thres : (Type : Positive float ) Anomaly threshold, used on anomaly scores estimated using K nearest neighbours on BMU of input test sample
+                Default: 3.0
+            to_plot : Boolean .Give True to see the plots of change-points detected and False if there is no need for plotting
+                Default : True
+
         '''
         
         
@@ -260,15 +284,14 @@ def evaluate(json_data,model_path,mode=mode_options[0],to_plot=True,anom_thres=3
             'anom_thres':anom_thres
         }
                 
-                    
+        error_codes1 = error_codes()
+            
         try: 
             '''
             #reseting the error_codes to avoid overwritting
             #error_codes is a python file imported as error_codes which has error_codes dictionary mapping 
             #for different kinds errors and reset function to reset them.
             '''
-            
-            error_codes.reset()
             # type_checker is python file which has Type_checker class which checks given parameter types
             checker = type_checker.Type_checker(kwargs=eval_args,ideal_args_type=ideal_eval_kwargs_type)
             # res is None when no error raised, otherwise it stores the appropriate error message
@@ -286,32 +309,32 @@ def evaluate(json_data,model_path,mode=mode_options[0],to_plot=True,anom_thres=3
             anomaly_detectors = []
             
             if((len(entire_data)!=0 and entire_data!=None and type(entire_data)!=dict)):
-
+                
                 '''
                 looping over the data per assets and inside that looping over metrics per asset
                 * Instantiates anomaly detector class with algo args and metric index to detect on
                 * Stores the anomaly indexes and anomaly detector object to bulk write to db at once
                 '''
-
+                    
                 for i,data_per_asset in enumerate(entire_data):
-                    assetno = pd.unique(data_per_asset['assetno'])[0]
-                    data_per_asset[data_per_asset.columns[1:]] = normalise_standardise(data_per_asset[data_per_asset.columns[1:]]
-                                                                 )
+                    if(len(data_per_asset)!=0):
+                        assetno = pd.unique(data_per_asset['assetno'])[0]
+                        data_per_asset[data_per_asset.columns[1:]] = normalise_standardise(data_per_asset[data_per_asset.columns[1:]]
+                                                                     )
+
+                        print("Data of Asset no: {} \n {}\n".format(assetno,data_per_asset.head()))
+
+                        anomaly_detector = som_detector.Som_Detector(data = data_per_asset,model_input_args=model_input_args,
+                                                                     training_args=None,eval_args=eval_args)
+
+                        anom_indexes = anomaly_detector.detect_anomalies()
+                        anomaly_detectors.append(anomaly_detector)
                     
-                    print("Data of Asset no: {} \n {}\n".format(assetno,data_per_asset.head()))
-                    cols = list(data_per_asset.columns[1:])
-                    
-                    anomaly_detector = som_detector.Som_Detector(data = data_per_asset,                                                            assetno=assetno,model_input_args=model_input_args,
-                                                                 training_args=None,metric_names=cols,eval_args=eval_args)
-                    
-                    anom_indexes = anomaly_detector.detect_anomalies()
-                    anomaly_detectors.append(anomaly_detector)
-                    
-                out_json = {}
+                        
+                ack_json = {}
                 
                 if(mode==mode_options[0] or mode==mode_options[1]):
                     ack_json = make_ackg_json.make_ack_json(anomaly_detectors)
-                    out_json['detect_status'] = ack_json
                 if(mode==mode_options[1] or mode==mode_options[2]):
                     
                     '''
@@ -327,23 +350,24 @@ def evaluate(json_data,model_path,mode=mode_options[0],to_plot=True,anom_thres=3
 
                     #called for mapping args before writing into db
                     res = writer.map_outputs_and_write()
-                    out_json['log_status'] = res
+                    if(res!=error_codes1['success']):
+                        return json.dumps(res)
                     
-                return json.dumps(out_json)
+                return json.dumps(ack_json)
                 
                 
             else:
                 '''
                 Data empty error
                 '''
-                return json.dumps(error_codes.error_codes['data_missing'])
+                return json.dumps(error_codes1['data_missing'])
         except Exception as e:
             '''
             unknown exceptions are caught here and traceback used to know the source of the error
             '''
             traceback.print_exc()
-            error_codes.error_codes['unknown']['message']=str(e)
-            return json.dumps(error_codes.error_codes['unknown'])
+            error_codes1['unknown']['message']=str(e)
+            return json.dumps(error_codes1['unknown'])
 
 reader_kwargs= lambda:{
             'assetno':['TSFAD_A1'],
@@ -388,5 +412,5 @@ training_args = lambda:{
 eval_args = lambda: {
     'model_path':'',
     'to_plot':True,
-    'anom_thres':3
+    'anom_thres':3.0
 }

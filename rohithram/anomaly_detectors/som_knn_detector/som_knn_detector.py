@@ -3,18 +3,11 @@
 import numpy as np
 import pandas as pd
 import json
-from pandas.io.json import json_normalize
+import scipy as sp
 
 #torch libraries
 import torch
-import torch.nn as nn
-import torch.nn.functional as F
-import torchvision
 from torch.utils.data import Dataset, DataLoader
-from torchvision import transforms, utils
-
-#importing sklearn libraries
-import scipy as sp
 
 import matplotlib.pyplot as plt
 from matplotlib.pylab import rcParams
@@ -26,25 +19,35 @@ import pickle
 from scipy.stats import gaussian_kde
 from mpl_toolkits.mplot3d import Axes3D
 
-#importing error_codes
+#importing dependencies
 from anomaly_detectors.utils import error_codes as error_codes
 from anomaly_detectors.som_knn_detector import som_knn_module
-import traceback
-import warnings
 from anomaly_detectors.utils.preprocessors import *
 
+import traceback
+import warnings
 warnings.filterwarnings('ignore')
 
 rcParams['figure.figsize'] = 12, 9
 rcParams[ 'axes.grid']=True
 
 
-def save_model(model,metric_names,filename='som_trained_model',target_dir="../../Anomaly_Detection_Models/Machine_Learning_Models"):
+def save_model(model,metric_names,assetno,filename='som_trained_model',target_dir="../../Anomaly_Detection_Models/Machine_Learning_Models"):
+    '''
+    Function to save the model in the given relative path using pickle
+    Arguments:
+    Required Params:
+        model : MODEL's class object which contains all model related info like weights and architecture
+        metric_names :  list of metric names to form the filename for saving the model
+        filename : Default -> 'som_trained_model' (It's main part of the filename)
+        target_dir: Give relative path to the target directory
+    '''
     
     try:
         time_now = ts_to_unix(pd.to_datetime(dt.datetime.now()))
         metric_names = [''.join(e for e in metric if e.isalnum()) for metric in metric_names]
-        filename = filename+'_{}_{}'.format('_'.join(metric_names),str(time_now))
+        # Creating the filename with metricnames and assetno and current time
+        filename = filename+'_{}_{}_{}'.format('_'.join(metric_names),str(assetno),str(time_now))
 
         filepath = os.path.join(target_dir,filename)
         
@@ -61,27 +64,22 @@ def save_model(model,metric_names,filename='som_trained_model',target_dir="../..
         return error_codes.error_codes['unknown']
     
 def load_model(filepath):
+    '''
+    Load the model from the given relative filepath
+    '''
     filehandler = open(filepath, 'rb')
     return pickle.load(filehandler)
 
 class Som_Detector():
-    def __init__(self,data,assetno,metric_names,model_input_args,training_args,eval_args):
+    def __init__(self,data,model_input_args,training_args,eval_args):
         
         '''
         Class which is used to find Changepoints in the dataset with given algorithm parameters.
         It has all methods related to finding anomalies to plotting those anomalies and returns the
         data being analysed and anomaly indexes.
         Arguments :
-        data -> dataframe which has one or two more metric columnwise
-        assetno -> assetno of the dataset
-        is_train -> By Default is False , as no training required for this algo
-        data_col_index -> column index of the metric to find changepoints on
-        pthres -> Default value :0.5 , (float) it is threshold after which a changepoint is flagged as on anomaly
-        mean_runlen -> (int) By default 100, It is the average gap between two changepoints , this comes from 
-                       nitty gritty math of exponential distributions
-        Nw (samples to wait) -> (int) By default 10 is being used for optimal performance. It is the samples after which
-                                we start assigning probailities for it to be a changepoint.
-        to_plot -> True if you want to plot anomalies
+        data -> dataframe which has one or two more metric columnwise per asset
+        model_input_args: dictionary of model related arguments 
         '''
         
         
@@ -89,14 +87,15 @@ class Som_Detector():
         self.algo_code = 'som'
         self.algo_type = 'multivariate'
         
+        #training args is set to None incase of evaluation mode
         if(training_args is not None):
             self.istrain = training_args['is_train']
         else:
             self.istrain = False
             
         self.data = data
-        self.metric_name = metric_names
-        self.assetno = assetno
+        self.metric_name = list(data[data.columns[1:]])
+        self.assetno = list(pd.unique(data['assetno']))[0]
         self.anom_indexes = None
         self.data_col_index = None
         self.model_input_args = model_input_args
@@ -121,16 +120,13 @@ class Som_Detector():
             entire_data = data_set[:,].numpy()
 
             diff_order = self.model_input_args['diff_order']
-            net = train_som(train_data,self.model_input_args,self.training_args)
-            model_path = save_model(net,metric_names = self.metric_name)
+            net = create_cum_train_som(train_data,self.model_input_args,self.training_args)
+            model_path = save_model(net,metric_names = self.metric_name,assetno=self.assetno)
             
             if(type(model_path)!=str and type(model_path)==dict):
                 #meaning some unknown error happened while saving the model
                 return model_path
             
-#             #Validation on entire data after training on the train data
-#             anom_indexes = test(net,entire_data,to_plot=self.training_args['to_plot'])
-#             self.anom_indexes = anom_indexes
             return model_path
         else:
             model_path = self.eval_args['model_path']
@@ -181,6 +177,9 @@ def split_the_data(data,test_frac=0.0):
     return train_data,test_data
 
 def plot_dataset(data):
+    '''
+    To visualise the multivariate data
+    '''
     fig = plt.figure()
     print("Dataset has {} rows {} columns".format(data[:,].shape[0],data[:,].shape[1]))
 
@@ -190,6 +189,11 @@ def plot_dataset(data):
     plt.show()   
 
 def process_data(data,test_frac,to_plot=True):
+    '''
+    Function to convert the raw dataset into Timeseries class object
+    Then splits the data into train and test with test_frac arg
+    Returns : timeseries dataset, train_data and test_data
+    '''
     data_set = TimeSeries_Dataset(data)
     train_data,test_data = split_the_data(data_set,test_frac=test_frac)
     print("Shape of Training dataset :{} and Test dataset :{}\n".format(train_data.shape,test_data.shape))
@@ -198,6 +202,18 @@ def process_data(data,test_frac,to_plot=True):
     return data_set,train_data,test_data
 
 def network_dimensions(train_data,N=100):
+    '''
+    Calculates the 2D network shape
+    The neurons are organized in a 2-dimensional map. The
+    ratio of the side lengths of the map is approximately the
+    ratio of the two largest eigenvalues of the training data
+    covariance matrix. 
+    Arguments: 
+    training data - Tensor object
+    N  - no of observations it's little abstract to decide this value. So its default set to 100
+    Returns: 
+    Dimensions of the 2D network
+    '''
     
     approx_network_size = 5*np.sqrt(N)
     train_df = pd.DataFrame(train_data.numpy())
@@ -215,26 +231,43 @@ def network_dimensions(train_data,N=100):
     col_dim = int(np.ceil(approx_network_size/row_dim))
     return row_dim,col_dim
 
-def test(net,evaluateData,anom_thres=3,to_plot=True):
+def test(model,evaluateData,anom_thres=3,to_plot=True):
+        
+        
+        '''
+        Function to detect anomalies (Evaluating from  the saved model)
+        Arguments: 
+        model -> Its instance of SOM_MODULE class imported from som_knn_module.py which is typically saved model loaded
+                from user given model path
+        evaluateData -> Data to detect anomalies
+        anom_thres   -> Default:3, Takes only integer
+        to_plot      -> Default: True, Give False (bool) to not plot the plots
+        
+        Returns : anomaly indexes
+        '''
         
         original_data = evaluateData
         no_cols = original_data.shape[-1]
-        diff_order = net.diff_order
+        diff_order = model.diff_order
         print("Input data's shape: {}".format(original_data.shape))
+        
+        # Differencing done on the data if diff_order is non zero, default diff_order=0
         res_evaluateData = np.diff(evaluateData,n=diff_order,axis=0).reshape(-1,no_cols)
         print("Differenced data shape {}".format(res_evaluateData.shape))
         
-#         res_evaluateData.reshape(-1,original_data.shape[-1])
-        # Fit the anomaly detector and apply to the evaluateData data
-        anomaly_metrics = net.evaluate(res_evaluateData) # Evaluate on the evaluateData data
+        #evaluate and get anomaly scores
+        anomaly_metrics = model.evaluate(res_evaluateData)
         print(anomaly_metrics.shape)
         anomaly_metrics = anomaly_metrics/np.linalg.norm(anomaly_metrics)
-#         k=anom_thres
+        
+        #Normalising the anomaly scores by l2 norm
         thres = anom_thres*(1/np.sqrt(len(anomaly_metrics)))
-#         thres = np.mean(anomaly_metrics)+k*np.std(anomaly_metrics)
+        
+        #finding indexes where anomaly scores are greater than threshold
         selector = anomaly_metrics > thres
+        
+        # getting the anomaly indexes
         anom_indexes = np.arange(len(res_evaluateData))[selector]
-#         anom_indexes = anom_indexes+diff_order
 #         anom_indexes = np.arange(original_data.shape[0]-diff_order)[selector]
         
         
@@ -251,7 +284,7 @@ def test(net,evaluateData,anom_thres=3,to_plot=True):
             plt.title("Distribution of dataset")
 
             plt.subplot(122)
-            plt.hist(net.bmu_counts)
+            plt.hist(model.bmu_counts)
             plt.title("Histogram of Bmu counts")
             plt.show();
             
@@ -287,38 +320,65 @@ def test(net,evaluateData,anom_thres=3,to_plot=True):
 
                 plt.show();
         
-        
-#         print("Anomaly indexes : {}".format(anom_indexes))
-
+    
         no_anoms_detected = (list(selector).count(True))
-        print("No of anomalies detected : {}, Fraction of data detected as anomaly : {}".
+        print("\nNo of anomalies detected : {}, Fraction of data detected as anomaly : {}".
               format(no_anoms_detected,no_anoms_detected/(evaluateData.shape[0])))
         return anom_indexes
 
 
-def train_loop(net,train_loader,epochs):
+def train_loop(model,train_loader,epochs):
+    '''
+    Function to train the model.
+    Arguments:
+    model: instance of the som_module class imported from som_knn_module.py
+    train_loader : Its data loader using pytorch which gives out batch of inputs
+    epochs: No of epochs to train the model
+    
+    Returns : Trained model
+    '''
     curr_batch_iter = 0
     for epoch in range(epochs):
-        print("Epoch : {} completed \n Max Bmu index : {}".
-              format(epoch,np.unravel_index(torch.argmax(net.bmu_counts),net.bmu_counts.shape)))
+        print("Epoch : {} completed\n".format(epoch))
 
     for i,x_batch in enumerate(train_loader):
             curr_batch_iter += 1
-            net = net.fit(x_batch,curr_batch_iter)
+            model = model.fit(x_batch,curr_batch_iter)
     
     print("\n Training successfully completed \n")
-    return net
+    return model
 
 
 def check_default_args(inp_kwargs,def_kwargs):
+    '''
+    Checking Default arguments
+    Arguments :
+    inp_kwargs : input kwargs given by the user
+    def_kwargs : default kwargs calculated from logic
+    
+    So it overwrites the input args if its not none 
+    Returns: 
+    Updated inp_kwargs
+    '''
     for key in inp_kwargs:
         for def_key in def_kwargs:
             if(inp_kwargs[def_key]==None):
                 inp_kwargs[def_key]=def_kwargs[def_key]
     return inp_kwargs
 
-def train_som(train_data,model_input_args,training_args):
+def create_cum_train_som(train_data,model_input_args,training_args):
     
+    '''
+    Function to create the model and train the som_knn model
+    Arguments :
+    
+    train_data : training data
+    model_input_args : dictionary of model_input_args
+    training_args : dictionary of training_args
+    
+    Returns:
+    Created and trained model 
+    '''
     def_kwargs = {}
     
     epochs = training_args['epochs']
@@ -334,36 +394,20 @@ def train_som(train_data,model_input_args,training_args):
     model_kwargs = check_default_args(model_input_args,def_kwargs)
     model_input_args.update(model_kwargs)
     
-        
-#     actual_network_size = row_dim*col_dim
-    
-    
-    
-    # initial neighbourhood radius
-#     init_radius = model_input_args['initial_radius']
-        
-    # initial learning rate
-#     init_learning_rate = model_input_args['initial_learning_rate']
-    
-    # radius decay parameter
-#     time_constant = model_input_args['time_constant']
-    
     model_input_args['input_feature_size'] = train_data.shape[-1]
     model_input_args['n_iterations'] = n_iterations
-    
     
     print("Network dimensions are {} x {} \n".format(row_dim,col_dim))
     diff_order = model_input_args['diff_order']
     del model_input_args['N']
-    net = som_knn_module.Som_net(**model_input_args)
+    model = som_knn_module.Som_model(**model_input_args)
 
-    
     res_train_data = (np.diff(train_data.numpy(),n=diff_order,axis=0).reshape(-1,train_data.numpy().shape[-1]))
     print("\nShape of differenced Training data : {}\n".format(res_train_data.shape))
     train_data_diff = torch.from_numpy(res_train_data)
 
     train_loader = torch.utils.data.DataLoader(train_data_diff, batch_size=batch_size,shuffle=True)
     
-    net = train_loop(net=net,epochs=epochs,train_loader=train_loader)
+    model = train_loop(model=model,epochs=epochs,train_loader=train_loader)
     
-    return net
+    return model

@@ -2,7 +2,7 @@
 # importing required modules 
 # error_codes is python file which has errorcodes dictionary
 import numpy as np
-from anomaly_detectors.utils import error_codes as error_codes
+from anomaly_detectors.utils.error_codes import error_codes
 
 class Type_checker():
     
@@ -22,7 +22,7 @@ class Type_checker():
         and returns the corresponding error message when mismatch encountered
         It also checks for probability threshold between 0 and 1
         '''
-        error_codes.reset()
+        error_codes1 = error_codes()
         kwargs = self.kwargs
         algo_params_type = self.ideal_args_type
         for key in kwargs:
@@ -32,19 +32,19 @@ class Type_checker():
                         if(kwargs[key]<1 and kwargs['pthres']>0):
                             continue
                         else:
-                            error_codes.error_codes['param']['data']['argument']='pthres'
-                            error_codes.error_codes['param']['data']['value']=kwargs['pthres']
-                            error_codes.error_codes['param']['message']='probability must be between 0 and 1 and it must be of type int or float'
-                            return error_codes.error_codes['param']
+                            error_codes1['param']['data']['argument']='pthres'
+                            error_codes1['param']['data']['value']=kwargs['pthres']
+                            error_codes1['param']['message']='probability must be between 0 and 1 and it must be of type int or float'
+                            return error_codes1['param']
                         
             except:
                 pass
             
             if(kwargs[key]!=None and type(kwargs[key])!=(algo_params_type[key])):
-                error_codes.error_codes['param']['data']['argument']=key
-                error_codes.error_codes['param']['data']['value']=kwargs[key]
-                error_codes.error_codes['param']['message']='should be of type {}'.format((algo_params_type[key]))
-                return error_codes.error_codes['param']
+                error_codes1['param']['data']['argument']=key
+                error_codes1['param']['data']['value']=kwargs[key]
+                error_codes1['param']['message']='should be of type {}'.format((algo_params_type[key]))
+                return error_codes1['param']
             
             else:
                 continue

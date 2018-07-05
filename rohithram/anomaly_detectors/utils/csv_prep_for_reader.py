@@ -41,7 +41,7 @@ def preparecsvtoread(filepath,filename,target_dir,assetno='TSFAD_A1',n_rows=None
         index = pd.DatetimeIndex(start=start, end=end, freq="10min")[:n_rows]
         df.insert(0,'timestamp', index) 
         df = df.dropna(axis=1, how='all')
-        print(df.head())
+#         print(df.head())
     else:
         df = df.rename(columns={df.columns[0]:'timestamp'})
     df['timestamp'] = (pd.to_datetime(df['timestamp'],infer_datetime_format=True).astype(np.int64)/(1e6)).astype(np.int64)
