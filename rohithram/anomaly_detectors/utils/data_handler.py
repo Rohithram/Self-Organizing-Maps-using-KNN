@@ -10,7 +10,7 @@ from anomaly_detectors.reader_writer import reader_new as reader
 from anomaly_detectors.reader_writer import checker as checker
 import datetime as dt
 # error code is python file which contains dictionary of mapped error codes and messages for different errors
-from anomaly_detectors.utils import error_codes as error_codes
+from anomaly_detectors.utils.error_codes import error_codes
 
 import warnings
 warnings.filterwarnings('ignore')
@@ -130,7 +130,8 @@ class Postgres_Writer():
             return self.write_to_db(col_names,col_vals)
         else:
             print("\nNo anomaly detected to write\n")
-            return error_codes.error_codes['success']
+            error_codes1 = error_codes()
+            return error_codes1['success']
         
         
     def make_query_args_univariate(self,anomaly_detector,sql_query_args):
@@ -254,19 +255,20 @@ class Data_reader():
         #takes json data
         self.json_data = json_data
         print("Data reader initialised \n")
-        error_codes.reset()
+#         error_codes.reset()
 
     def read(self):
         
+#         response_dict = {}
         try:
             response_dict = json.loads(self.json_data)
 #             print("Response dictionary : {}".format(response_dict))
             
         except Exception as e:
-            error_codes.error_codes['param']['message'] = str(e)+" - json_data must be proper json object"
-            error_codes.error_codes['param']['data']['argument'] = 'json_data'
-            error_codes.error_codes['param']['data']['value'] = self.json_data
-            return error_codes.error_codes['param']
+            error_codes1 = error_codes()
+            error_codes1['param']['message'] = '{},{}'.format(str(e),str(self.json_data))
+#             del error_codes.error_codes['param']['data']={}
+            return error_codes1['param']
         
 #         if(type(response_dict)==str):
 #             error_codes.error_codes['data_missing']['message']=response_dict
@@ -300,28 +302,33 @@ class Data_reader():
         '''
         
         entire_data_set = []
-        for data_per_asset in response_dict['body']:
-            dataframe_per_asset = []
-            assetno = data_per_asset['assetno']
-            for data_per_metric in data_per_asset['readings']:
-                data = pd.DataFrame(data_per_metric['datapoints'],columns=['timestamp',data_per_metric['name']])
-                # making index of dataframe as timestamp and deleting that column
-#                 data.dropna(inplace=True)
-#                 data.reset_index(inplace=True,drop=True)
-                data.index = data['timestamp']
-                del data['timestamp']
-                data['assetno']=assetno
-#                 print(data.head())
-                dataframe_per_asset.append(data)
-            dataframe = pd.concat(dataframe_per_asset,axis=1)
-            try:
-                dataframe = dataframe.T.drop_duplicates().T
-            except:
-                pass
-            cols = list(dataframe.columns)
-            cols.insert(0, cols.pop(cols.index('assetno')))
-            dataframe = dataframe[cols]
-#             print('Asset no : {} \n {} \n'.format(assetno,dataframe.head()))
-            entire_data_set.append(dataframe)        
-#             print(entire_data_set)
+        if(len(response_dict['body'])!=0):
+            for data_per_asset in response_dict['body']:
+                dataframe_per_asset = []
+                if(bool(data_per_asset)):
+                    assetno = data_per_asset['assetno']
+                    if(len(data_per_asset['readings'])!=0):
+                        for data_per_metric in data_per_asset['readings']:
+                            if(bool(data_per_metric) and len(data_per_metric['datapoints'])!=0):
+                                
+                                data = pd.DataFrame(data_per_metric['datapoints'],columns=['timestamp',data_per_metric['name']])
+                                # making index of dataframe as timestamp and deleting that column
+                #                 data.dropna(inplace=True)
+                #                 data.reset_index(inplace=True,drop=True)
+                                data.index = data['timestamp']
+                                del data['timestamp']
+                                data['assetno']=assetno
+                #                 print(data.head())
+                                dataframe_per_asset.append(data)
+                        dataframe = pd.concat(dataframe_per_asset,axis=1)
+                        try:
+                            dataframe = dataframe.T.drop_duplicates().T
+                        except:
+                            pass
+                        cols = list(dataframe.columns)
+                        cols.insert(0, cols.pop(cols.index('assetno')))
+                        dataframe = dataframe[cols]
+            #             print('Asset no : {} \n {} \n'.format(assetno,dataframe.head()))
+                        entire_data_set.append(dataframe)        
+        #             print(entire_data_set)
         return entire_data_set
