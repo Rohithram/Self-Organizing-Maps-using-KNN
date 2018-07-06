@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 import psycopg2
 import json
+from pandas.io.json import json_normalize
 
 #importing reader and checker for reading data
 from anomaly_detectors.reader_writer import reader_new as reader
@@ -302,33 +303,42 @@ class Data_reader():
         '''
         
         entire_data_set = []
+        
         if(len(response_dict['body'])!=0):
-            for data_per_asset in response_dict['body']:
-                dataframe_per_asset = []
-                if(bool(data_per_asset)):
-                    assetno = data_per_asset['assetno']
-                    if(len(data_per_asset['readings'])!=0):
-                        for data_per_metric in data_per_asset['readings']:
-                            if(bool(data_per_metric) and len(data_per_metric['datapoints'])!=0):
+            df = json_normalize(data=response_dict, record_path=['body', 'readings', 'datapoints'], meta=[['body', 'assetno'],
+               ['body', 'readings', 'name']])
+            df.columns = ['timestamp', 'values', 'assetno', 'parameters']
+            df = pd.pivot_table(df, values='values', index=['assetno','timestamp'], columns=['parameters'], aggfunc=np.mean)
+            data = df.reset_index(drop=False).rename_axis(None,axis=1)
+            data.index = data['timestamp']
+            del data['timestamp']
+            data_per_assets = data.groupby('assetno')
+            for name,group in data_per_assets:
+                entire_data_set.append(group)
+                
+    
+#         if(len(response_dict['body'])!=0):
+#             for data_per_asset in response_dict['body']:
+#                 dataframe_per_asset = []
+#                 if(bool(data_per_asset)):
+#                     assetno = data_per_asset['assetno']
+#                     if(len(data_per_asset['readings'])!=0):
+#                         for data_per_metric in data_per_asset['readings']:
+#                             if(bool(data_per_metric) and len(data_per_metric['datapoints'])!=0):
                                 
-                                data = pd.DataFrame(data_per_metric['datapoints'],columns=['timestamp',data_per_metric['name']])
-                                # making index of dataframe as timestamp and deleting that column
-                #                 data.dropna(inplace=True)
-                #                 data.reset_index(inplace=True,drop=True)
-                                data.index = data['timestamp']
-                                del data['timestamp']
-                                data['assetno']=assetno
-                #                 print(data.head())
-                                dataframe_per_asset.append(data)
-                        dataframe = pd.concat(dataframe_per_asset,axis=1)
-                        try:
-                            dataframe = dataframe.T.drop_duplicates().T
-                        except:
-                            pass
-                        cols = list(dataframe.columns)
-                        cols.insert(0, cols.pop(cols.index('assetno')))
-                        dataframe = dataframe[cols]
-            #             print('Asset no : {} \n {} \n'.format(assetno,dataframe.head()))
-                        entire_data_set.append(dataframe)        
-        #             print(entire_data_set)
+#                                 data = pd.DataFrame(data_per_metric['datapoints'],columns=['timestamp',data_per_metric['name']])
+      
+#                                 data.index = data['timestamp']
+#                                 del data['timestamp']
+#                                 data['assetno']=assetno
+#                                 dataframe_per_asset.append(data)
+#                         dataframe = pd.concat(dataframe_per_asset,axis=1)
+#                         try:
+#                             dataframe = dataframe.T.drop_duplicates().T
+#                         except:
+#                             pass
+#                         cols = list(dataframe.columns)
+#                         cols.insert(0, cols.pop(cols.index('assetno')))
+#                         dataframe = dataframe[cols]
+#                         entire_data_set.append(dataframe)        
         return entire_data_set
