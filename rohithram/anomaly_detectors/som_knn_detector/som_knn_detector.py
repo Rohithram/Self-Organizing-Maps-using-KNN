@@ -20,7 +20,7 @@ from scipy.stats import gaussian_kde
 from mpl_toolkits.mplot3d import Axes3D
 
 #importing dependencies
-from anomaly_detectors.utils import error_codes as error_codes
+from anomaly_detectors.utils.error_codes import error_codes
 from anomaly_detectors.som_knn_detector import som_knn_module
 from anomaly_detectors.utils.preprocessors import *
 
@@ -32,7 +32,8 @@ rcParams['figure.figsize'] = 12, 9
 rcParams[ 'axes.grid']=True
 
 
-def save_model(model,metric_names,assetno,filename='som_trained_model',target_dir="../../Anomaly_Detection_Models/Machine_Learning_Models"):
+def save_model(model,metric_names,assetno,filename='som_trained_model',
+               target_dir="../../Anomaly_Detection_Models/Machine_Learning_Models"):
     '''
     Function to save the model in the given relative path using pickle
     Arguments:
@@ -43,25 +44,29 @@ def save_model(model,metric_names,assetno,filename='som_trained_model',target_di
         target_dir: Give relative path to the target directory
     '''
     
+    error_codes1  = error_codes()
     try:
         time_now = ts_to_unix(pd.to_datetime(dt.datetime.now()))
         metric_names = [''.join(e for e in metric if e.isalnum()) for metric in metric_names]
+        
         # Creating the filename with metricnames and assetno and current time
-        filename = filename+'_{}_{}_{}'.format('_'.join(metric_names),str(assetno),str(time_now))
-
+        filename = filename+'_{}_{}'.format('_'.join(metric_names),str(assetno),str(time_now))
+        
         filepath = os.path.join(target_dir,filename)
         
+        if(len(filepath)>100):
+            filepath = filepath[:100]
 
         filehandler = open(filepath, 'wb')
         pickle.dump(model, filehandler)
         print("\nSaved model : {} in {},\nLast Checkpointed at: {}\n".format(filename,target_dir,time_now))
-        return filepath,time_now
+        return filepath
     
     except Exception as e:
         traceback.print_exc()
         print("Error occured while saving model\n")
-        error_codes.error_codes['unknown']['message']=e
-        return error_codes.error_codes['unknown']
+        error_codes1['unknown']['message']=e
+        return error_codes1['unknown']
     
 def load_model(filepath):
     '''
@@ -112,7 +117,6 @@ class Som_Detector():
         
         
         print("Shape of the Entire dataset : {}\n".format(data.shape))
-#         print(data.shape)
 
         if(self.istrain):
             data_set,train_data,test_data = process_data(data=data,test_frac=self.training_args['test_frac'],
@@ -122,10 +126,6 @@ class Som_Detector():
             diff_order = self.model_input_args['diff_order']
             net = create_cum_train_som(train_data,self.model_input_args,self.training_args)
             model_path = save_model(net,metric_names = self.metric_name,assetno=self.assetno)
-            
-            if(type(model_path)!=str and type(model_path)==dict):
-                #meaning some unknown error happened while saving the model
-                return model_path
             
             return model_path
         else:
@@ -150,11 +150,7 @@ class TimeSeries_Dataset(Dataset):
         """
         
         self.data = data
-
-#         print("Overview of dataset : \n {} \n".format(self.data.head()))
             
-        print(self.data.dtype)
-
     def __len__(self):
         return len(self.data)
 
@@ -268,7 +264,6 @@ def test(model,evaluateData,anom_thres=3,to_plot=True):
         
         # getting the anomaly indexes
         anom_indexes = np.arange(len(res_evaluateData))[selector]
-#         anom_indexes = np.arange(original_data.shape[0]-diff_order)[selector]
         
         
         if(to_plot):
@@ -299,7 +294,6 @@ def test(model,evaluateData,anom_thres=3,to_plot=True):
                 fig2 = plt.figure(figsize=(20,10))
                 plt.plot(res_evaluateData[:,])
                 plt.title("Dataset after differencing marked with anomalies")
-#                 plt.scatter(x=anom_indexes,y=res_evaluateData[anom_indexes,0],color='r')
                 [plt.axvline(x=ind,color='r') for ind in anom_indexes]
                 plt.show();
 
