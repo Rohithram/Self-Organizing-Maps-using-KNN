@@ -183,13 +183,13 @@ def train(json_data,network_shape=None,input_feature_size=None,time_constant=Non
                 * Stores the anomaly indexes and anomaly detector object to bulk write to db at once
                 '''
                 
-#                 model_paths = []
+                # Output Format for training the model
+                #models: is an list of filepaths where model saved
                 out_json = {'header':'','models':[]}
 
                 for i,data_per_asset in enumerate(entire_data):
                     if(len(data_per_asset)!=0):
                         assetno = pd.unique(data_per_asset['assetno'])[0]
-    #                     print(assetno)
                         data_per_asset[data_per_asset.columns[1:]] = normalise_standardise(data_per_asset[data_per_asset.columns[1:]]
                                                                      )
 
@@ -203,35 +203,21 @@ def train(json_data,network_shape=None,input_feature_size=None,time_constant=Non
 
                         model_path = (anomaly_detector.detect_anomalies())
 
-                        model = {anomaly_detector.assetno:model_path[0]}
-    #                     table_name = write_args.table_name
-    #                     window_size = 10
-    #                     anomaly_detectors.append(anomaly_detector)
-    #                     sql_query_args = write_args.writer_kwargs
+                        model = {anomaly_detector.assetno:model_path}
+                        
+                        '''
+                        TODO : Add code for saving the model into database here 
+                        '''
 
 
                         out_json['models'].append(model)
                 out_json['header'] = error_codes1['success']
                 
-#                 if(mode==mode_options[0] or mode==mode_options[1]):
-#                     ack_json = make_ackg_json.make_ack_json(anomaly_detectors)
-#                     out_json['detect_status'] = ack_json
-#                 if(mode==mode_options[1] or mode==mode_options[2]):
-#                     '''
-#                     Instantiates writer class to write into local database with arguments given below
-#                     Used for Bulk writing
-#                     '''
-#                     writer = Postgres_Writer(anomaly_detectors,db_credentials=db_props.db_connection,
-#                                              sql_query_args=sql_query_args,
-#                                             table_name=table_name,window_size=window_size)
-
-#                     #called for mapping args before writing into db
-#                     res = writer.map_outputs_and_write()
-#                     out_json['log_status']=res
+                
                
                 return json.dumps(out_json)
             elif(type(entire_data)==dict):
-               return json.dumps(entire_data)
+                return json.dumps(entire_data)
             else:
                 '''
                 Data empty error
@@ -353,6 +339,9 @@ def evaluate(json_data,model_path,mode=mode_options[0],to_plot=True,anom_thres=3
                     if(res!=error_codes1['success']):
                         return json.dumps(res)
                     
+                    if(bool(ack_json)==False):
+                        ack_json['header'] = error_codes1['success']
+                        
                 return json.dumps(ack_json)
                 
                 
