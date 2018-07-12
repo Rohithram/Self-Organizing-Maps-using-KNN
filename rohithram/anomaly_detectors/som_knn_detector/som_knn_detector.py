@@ -50,12 +50,12 @@ def save_model(model,metric_names,assetno,filename='som_trained_model',
         metric_names = [''.join(e for e in metric if e.isalnum()) for metric in metric_names]
         
         # Creating the filename with metricnames and assetno and current time
-        filename = filename+'_{}_{}'.format('_'.join(metric_names),str(assetno),str(time_now))
+        filename = filename+'_{}_{}_{}'.format('_'.join(metric_names),str(assetno),str(time_now))
         
         filepath = os.path.join(target_dir,filename)
         
-        if(len(filepath)>100):
-            filepath = filepath[:100]
+        if(len(filepath)>150):
+            filepath = filepath[:150]
 
         filehandler = open(filepath, 'wb')
         pickle.dump(model, filehandler)
@@ -281,6 +281,8 @@ def test(model,evaluateData,anom_thres=3,to_plot=True):
             plt.subplot(122)
             plt.hist(model.bmu_counts)
             plt.title("Histogram of Bmu counts")
+            plt.xlabel(r"No of BMU counts $\to$")
+            plt.ylabel(r"No of Neurons with those BMU Hits $\to$")
             plt.show();
             
             fig = plt.figure(figsize=(20,10))
@@ -309,8 +311,8 @@ def test(model,evaluateData,anom_thres=3,to_plot=True):
                 fig3 = plt.figure(figsize=(20,10))
                 plt.plot(original_data)
                 plt.title("Exact Dataset with detectedanomalies")
-#                 plt.scatter(x=anom_indexes,y=original_data[anom_indexes,0],color='r')
-                [plt.axvline(x=ind,color='r') for ind in anom_indexes]
+                plt.scatter(x=anom_indexes,y=original_data[anom_indexes,0],color='r')
+#                 [plt.axvline(x=ind,color='r') for ind in anom_indexes]
 
                 plt.show();
         

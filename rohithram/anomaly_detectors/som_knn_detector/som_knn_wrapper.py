@@ -150,14 +150,18 @@ def train(json_data,network_shape=None,input_feature_size=None,time_constant=Non
         #merging all algo arguments for params checking
         algo_kwargs = {**model_input_args,**training_args}
         
+        '''
+            #instantiating the error_codes to avoid overwritting
+            #error_codes is a python file imported as error_codes which has error_codes dictionary mapping 
+            #for different kinds errors and reset function to reset them.
+        '''
+        
         error_codes1 = error_codes()
               
         try: 
-            '''
-            #reseting the error_codes to avoid overwritting
-            #error_codes is a python file imported as error_codes which has error_codes dictionary mapping 
-            #for different kinds errors and reset function to reset them.
-            '''
+            
+            
+            
             
             # type_checker is python file which has Type_checker class which checks given parameter types
             checker = type_checker.Type_checker(kwargs=algo_kwargs,ideal_args_type=ideal_train_kwargs_type)
@@ -269,15 +273,27 @@ def evaluate(json_data,model_path,mode=mode_options[0],to_plot=True,anom_thres=3
             'to_plot':to_plot,
             'anom_thres':anom_thres
         }
-                
+           
+        '''
+            #instantiating the error_codes to avoid overwritting
+            #error_codes is a python file imported as error_codes which has error_codes dictionary mapping 
+            #for different kinds errors and reset function to reset them.
+        '''
         error_codes1 = error_codes()
             
         try: 
-            '''
-            #reseting the error_codes to avoid overwritting
-            #error_codes is a python file imported as error_codes which has error_codes dictionary mapping 
-            #for different kinds errors and reset function to reset them.
-            '''
+            
+            
+            #converting user given mode to all lower case
+            mode = mode.lower()
+            # Check for mode
+            if(mode not in mode_options):
+                error_codes1['param']['data']['argument']='mode'
+                error_codes1['param']['data']['value']=mode
+                error_codes1['param']['message']='should be one of {}'.format((mode_options))
+                return json.dumps(error_codes1['param'])
+            
+            
             # type_checker is python file which has Type_checker class which checks given parameter types
             checker = type_checker.Type_checker(kwargs=eval_args,ideal_args_type=ideal_eval_kwargs_type)
             # res is None when no error raised, otherwise it stores the appropriate error message
