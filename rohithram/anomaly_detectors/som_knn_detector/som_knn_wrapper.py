@@ -11,14 +11,11 @@ import os
 
 
 # Importing dependency files
-from anomaly_detectors.reader_writer import db_properties as db_props
-from anomaly_detectors.reader_writer import writer_configs as write_args
 from anomaly_detectors.utils.preprocessors import *
 from anomaly_detectors.utils.data_handler import *
 from anomaly_detectors.utils.error_codes import error_codes
 from anomaly_detectors.utils import type_checker as type_checker
 from anomaly_detectors.utils import csv_prep_for_reader as csv_helper
-from anomaly_detectors.utils import reader_helper
 from anomaly_detectors.utils import make_ackg_json
 from anomaly_detectors.som_knn_detector import som_knn_detector as som_detector
 from anomaly_detectors.som_knn_detector import som_knn_module as som_model
@@ -60,9 +57,7 @@ ideal_eval_kwargs_type = {
         }
 
 
-mode_options = ['detect only','detect and log','log only']
-
-def train(json_data,network_shape=None,input_feature_size=None,time_constant=None,minNumPerBmu=2,
+def train(filepath,network_shape=None,input_feature_size=None,time_constant=None,minNumPerBmu=2,
           no_of_neighbours=10,init_radius=None,init_learning_rate=0.01,N=100,diff_order=1,is_train=True
           ,epochs=4,batch_size=4,to_plot=True,test_frac=0.5):
 
@@ -77,12 +72,10 @@ def train(json_data,network_shape=None,input_feature_size=None,time_constant=Non
                             the model file path where it saved
         *make_acknowledgement_json - Its function to Make acknowlegement json imported from make_ackg_json.py
         
-        *writer           - Class Postgres_Writer defined in data_handler.py which takes in anomaly detector object and
-                            and sql_queries, db_properties and table name as args and gives out response code.
         
         Arguments :
         Required Parameter:
-            json_data: The Json object in the format of the input json given from reader api
+            filepath: The Json object in the format of the input json given from reader api
             
         Optional Parameter 
                 mode : mode has 3 options -> 'detect only','detect and log' , 'log only'
@@ -160,9 +153,6 @@ def train(json_data,network_shape=None,input_feature_size=None,time_constant=Non
               
         try: 
             
-            
-            
-            
             # type_checker is python file which has Type_checker class which checks given parameter types
             checker = type_checker.Type_checker(kwargs=algo_kwargs,ideal_args_type=ideal_train_kwargs_type)
             # res is None when no error raised, otherwise it stores the appropriate error message
@@ -171,7 +161,7 @@ def train(json_data,network_shape=None,input_feature_size=None,time_constant=Non
                 return json.dumps(res)
             
             # instanstiating the reader class with reader arguments
-            data_reader = Data_reader(json_data=json_data)
+            data_reader = Data_reader(filepath=filepath)
             #getting list of dataframes per asset if not empty
             #otherwise gives string 'Empty Dataframe'
             entire_data = data_reader.read()
@@ -235,13 +225,13 @@ def train(json_data,network_shape=None,input_feature_size=None,time_constant=Non
             error_codes1['unknown']['message']=str(e)
             return json.dumps(error_codes1['unknown'])
 
-def evaluate(json_data,model_path,mode=mode_options[0],to_plot=True,anom_thres=3.0):
+def evaluate(filepath,model_path,to_plot=True,anom_thres=3.0):
 
     
         '''
         Wrapper function which should be called inorder to run the anomaly detection, it has four parts :
-        *reader           - Class Data_reader defined in data_handler.py which takes in json_string  and parses json 
-                            and gives list of dataframes
+        *reader           - Class Data_reader defined in data_handler.py which takes in filepath in string format
+                            and parses a big dataframe into list of dataframes per asset
         *preprocessor     - preprocessors are defined in preprocessors.py, which takes in data and gives out processed 
                             data
         *anomaly detector - Class som_knn_detector defined in som_knn_detector.py, which takes in
@@ -249,13 +239,11 @@ def evaluate(json_data,model_path,mode=mode_options[0],to_plot=True,anom_thres=3
                             and returns anomaly_indexes.      
         * make_acknowledgement_json - Its function to Make acknowlegement json imported from make_ackg_json.py
         
-        *writer           - Class Postgres_Writer defined in data_handler.py which takes in anomaly detector object and
-                            and sql_queries , db_properties and table name as args and gives out response code.
         
         Arguments :
         
         Required Parameter:
-            json_data: The Json object in the format of the input json given from reader api to evaluate the model
+            filepath: The Json object in the format of the input json given from reader api to evaluate the model
             model_path : Saved model file path in (string) format
         Optional Parameters: 
             mode - mode has 3 options 'detect only','detect and log','log only'
@@ -281,17 +269,7 @@ def evaluate(json_data,model_path,mode=mode_options[0],to_plot=True,anom_thres=3
         '''
         error_codes1 = error_codes()
             
-        try: 
-            
-            
-            #converting user given mode to all lower case
-            mode = mode.lower()
-            # Check for mode
-            if(mode not in mode_options):
-                error_codes1['param']['data']['argument']='mode'
-                error_codes1['param']['data']['value']=mode
-                error_codes1['param']['message']='should be one of {}'.format((mode_options))
-                return json.dumps(error_codes1['param'])
+        try:
             
             
             # type_checker is python file which has Type_checker class which checks given parameter types
@@ -302,7 +280,7 @@ def evaluate(json_data,model_path,mode=mode_options[0],to_plot=True,anom_thres=3
                 return json.dumps(res)
             
             # instanstiating the reader class with reader arguments
-            data_reader = Data_reader(json_data=json_data)
+            data_reader = Data_reader(filepath=filepath)
             #getting list of dataframes per asset if not empty
             #otherwise gives string 'Empty Dataframe'
             entire_data = data_reader.read()
@@ -321,42 +299,20 @@ def evaluate(json_data,model_path,mode=mode_options[0],to_plot=True,anom_thres=3
                 for i,data_per_asset in enumerate(entire_data):
                     if(len(data_per_asset)!=0):
                         assetno = pd.unique(data_per_asset['assetno'])[0]
-                        data_per_asset[data_per_asset.columns[1:]] = normalise_standardise(data_per_asset[data_per_asset.columns[1:]]
-                                                                     )
+                        data_per_asset[data_per_asset.columns[1:]] = normalise_standardise(
+                            data_per_asset[data_per_asset.columns[1:]])
 
                         print("Data of Asset no: {} \n {}\n".format(assetno,data_per_asset.head()))
 
-                        anomaly_detector = som_detector.Som_Detector(data = data_per_asset,model_input_args=model_input_args,
+                        anomaly_detector = som_detector.Som_Detector(data = data_per_asset,
+                                                                     model_input_args=model_input_args,
                                                                      training_args=None,eval_args=eval_args)
 
                         anom_indexes = anomaly_detector.detect_anomalies()
                         anomaly_detectors.append(anomaly_detector)
                     
-                        
-                ack_json = {}
-                
-                if(mode==mode_options[0] or mode==mode_options[1]):
-                    ack_json = make_ackg_json.make_ack_json(anomaly_detectors)
-                if(mode==mode_options[1] or mode==mode_options[2]):
-                    
-                    '''
-                    Instantiates writer class to write into local database with arguments given below
-                    Used for Bulk writing
-                    '''
-                    sql_query_args = write_args.writer_kwargs
-                    table_name = write_args.table_name
-                    window_size = 10
-
-                    writer = Postgres_Writer(anomaly_detectors,db_credentials=db_props.db_connection,sql_query_args=sql_query_args,
-                                            table_name=table_name,window_size=window_size)
-
-                    #called for mapping args before writing into db
-                    res = writer.map_outputs_and_write()
-                    if(res!=error_codes1['success']):
-                        return json.dumps(res)
-                    
-                    if(bool(ack_json)==False):
-                        ack_json['header'] = error_codes1['success']
+                                        
+                ack_json = make_ackg_json.make_ack_json(anomaly_detectors)
                         
                 return json.dumps(ack_json)
                 
@@ -374,23 +330,15 @@ def evaluate(json_data,model_path,mode=mode_options[0],to_plot=True,anom_thres=3
             error_codes1['unknown']['message']=str(e)
             return json.dumps(error_codes1['unknown'])
 
-reader_kwargs= lambda:{
-            'assetno':['TSFAD_A1'],
-            'from_timestamp':'',
-            'to_timestamp':'',
-            'con':'',
-            'para_list':'',
-            'source_type':'',
-            'table_name':'',
-            'qry_str':'',
-            'impute_fill_method':'forward',
-            'down_sampling_method':None,
-            'down_sampling_window':None,
-            'freq':None,
-            'resample_fill_method':None,
-            'to_resample':None,
-            'to_impute':True,
-}
+reader_kwargs = lambda :{
+            'filepath'   :'../../dataset/sample_csv_files/alcohol-demand-log-spirits-consu.csv',
+            'filename'   :'alcohol-demand-log-spirits-consu.csv',
+            'target_dir' :'../../dataset/reader_csv_files/',
+            'assetno'    :'A1',
+            'n_rows'     :None,
+            'has_time'   :True
+            }
+
 
 model_input_args = lambda :{
     'network_shape':(8,8),
@@ -411,8 +359,6 @@ training_args = lambda:{
             'to_plot':True,
             'test_frac':0.7
         }
-
-
         
 eval_args = lambda: {
     'model_path':'',
